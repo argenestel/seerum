@@ -10,6 +10,7 @@ import { User } from "lucide-react";
 import Link from "next/link";
 import { VaultSetupModal } from "@/components/vault-setup-modal";
 import { useVault, useSafeAddress } from "@/lib/hooks/useVault";
+import { ArbitrageScanner } from "@/components/arbitrage-scanner";
 
 export default function Home() {
   const { theme, setTheme } = useTheme();
@@ -29,7 +30,7 @@ export default function Home() {
         setShowVaultModal(true);
       } else if (vaultInfo && safeInfo && !safeInfo.isDeployed) {
         // Vault exists but Safe not deployed - show modal
-        setShowVaultModal(true);
+      setShowVaultModal(true);
       } else if (vaultInfo && safeInfo && safeInfo.isDeployed) {
         // Everything is set up - close modal
         setShowVaultModal(false);
@@ -138,11 +139,7 @@ export default function Home() {
         {tradeMode === "copy" ? (
           <Leaderboard />
         ) : (
-          <div className="flex items-center justify-center py-12">
-            <div className="text-muted-foreground">
-              Free trading interface coming soon
-            </div>
-          </div>
+          <ArbitrageScanner />
         )}
       </main>
     </div>

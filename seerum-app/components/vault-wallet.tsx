@@ -246,13 +246,13 @@ export function VaultWallet() {
                     <div className="flex items-center justify-between pt-2 border-t border-border/50">
                       <span className="text-muted-foreground">USDC Balance:</span>
                       <span className="font-mono">${parseFloat(polymarketInfo.onChainBalance || "0").toFixed(2)}</span>
-                    </div>
-                    {polymarketInfo.polymarketBalance !== null && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Polymarket Balance:</span>
+                </div>
+                {polymarketInfo.polymarketBalance !== null && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Polymarket Balance:</span>
                         <span className="font-mono">${polymarketInfo.polymarketBalance}</span>
-                      </div>
-                    )}
+                  </div>
+                )}
                   </>
                 )}
               </div>
@@ -269,23 +269,23 @@ export function VaultWallet() {
               <p className="text-sm text-muted-foreground mb-3">
                 Deploy your Safe wallet to start copy trading. This is a one-time gasless transaction.
               </p>
-              <button
-                onClick={handleDeploySafe}
-                disabled={deploySafe.isPending}
-                className="w-full px-4 py-3 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {deploySafe.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Deploying Safe...
-                  </>
-                ) : (
-                  <>
-                    <Shield className="h-4 w-4" />
-                    Deploy Safe Wallet (Gasless)
-                  </>
-                )}
-              </button>
+            <button
+              onClick={handleDeploySafe}
+              disabled={deploySafe.isPending}
+              className="w-full px-4 py-3 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {deploySafe.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Deploying Safe...
+                </>
+              ) : (
+                <>
+                  <Shield className="h-4 w-4" />
+                  Deploy Safe Wallet (Gasless)
+                </>
+              )}
+            </button>
             </div>
           )}
 

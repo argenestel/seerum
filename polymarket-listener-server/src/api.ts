@@ -55,19 +55,44 @@ export function createApiServer(
   app.post("/subscribers", async (req, res) => {
     try {
       const { subscriberAddress, traderAddress, percentage } = req.body;
+      
+      console.log("[API] POST /subscribers - Request body:", {
+        subscriberAddress,
+        traderAddress,
+        percentage,
+        percentageType: typeof percentage,
+      });
+      
       if (!subscriberAddress || !traderAddress) {
         return res.status(400).json({
           error: "subscriberAddress and traderAddress are required",
         });
       }
 
-      // Validate percentage if provided
-      const copyPercentage = percentage !== undefined ? parseFloat(percentage) : 100;
-      if (isNaN(copyPercentage) || copyPercentage <= 0 || copyPercentage > 100) {
-        return res.status(400).json({
-          error: "percentage must be a number between 1 and 100",
-        });
+      // Validate and convert percentage to number
+      let copyPercentage = 100;
+      if (percentage !== undefined && percentage !== null) {
+        // Handle string, number, or boolean (though boolean shouldn't happen)
+        if (typeof percentage === 'boolean') {
+          console.error("[API] Invalid percentage type (boolean):", percentage);
+          return res.status(400).json({
+            error: "percentage cannot be a boolean value",
+          });
+        }
+        copyPercentage = typeof percentage === 'number' ? percentage : parseFloat(String(percentage));
+        if (isNaN(copyPercentage) || copyPercentage <= 0 || copyPercentage > 100) {
+          return res.status(400).json({
+            error: "percentage must be a number between 1 and 100",
+          });
+        }
       }
+
+      console.log("[API] Calling database.addSubscriber with:", {
+        subscriberAddress,
+        traderAddress,
+        copyPercentage,
+        copyPercentageType: typeof copyPercentage,
+      });
 
       const subscriber = await database.addSubscriber(subscriberAddress, traderAddress, copyPercentage);
       

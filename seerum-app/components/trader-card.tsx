@@ -16,6 +16,11 @@ export function TraderCard({ trader, rank }: TraderCardProps) {
   const address = trader.proxyWallet || trader.user || "";
   const traderAddress = address as Address;
   
+  // Validate trader address
+  if (!address || address === "") {
+    console.error("[TraderCard] Missing trader address:", { trader, proxyWallet: trader.proxyWallet, user: trader.user });
+  }
+  
   const isSubscribed = useIsSubscribedToTrader(traderAddress);
   const subscribe = useSubscribeToTrader();
   const unsubscribe = useUnsubscribeFromTrader();
@@ -26,7 +31,19 @@ export function TraderCard({ trader, rank }: TraderCardProps) {
   };
   
   const handleSubscribe = async () => {
-    if (!traderAddress) return;
+    if (!address || address === "" || !traderAddress) {
+      console.error("[TraderCard] Cannot subscribe: traderAddress is missing", { trader, address, traderAddress });
+      alert("Error: Trader address is missing. Please refresh the page and try again.");
+      return;
+    }
+    
+    console.log("[TraderCard] Subscribing to trader:", {
+      traderAddress,
+      trader,
+      proxyWallet: trader.proxyWallet,
+      user: trader.user,
+    });
+    
     try {
       // Default to 100% copy percentage (can be made configurable later)
       await subscribe.mutateAsync({ traderAddress, percentage: 100 });

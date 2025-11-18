@@ -103,20 +103,27 @@ export class Database {
     }
 
     const now = new Date();
-    const storedTrade: Omit<StoredTrade, "id"> = {
-      ...tradeData,
+    
+    // Only include fields that exist in the database schema
+    // Don't spread tradeData as it might contain fields not in schema (like eventSlug)
+    const storedTrade = {
+      id: tradeData.id,
+      user: tradeData.user,
+      market: tradeData.market,
+      asset_id: tradeData.asset_id,
+      side: tradeData.side,
+      size: tradeData.size,
+      price: tradeData.price,
+      timestamp: tradeData.timestamp,
       copied: false,
-      created_at: now,
-      updated_at: now,
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
     };
 
     const { data, error } = await this.supabase
       .from("trades")
       .upsert(
-        {
-          id: tradeData.id,
-          ...storedTrade,
-        },
+        storedTrade,
         {
           onConflict: "id",
         }
@@ -241,33 +248,125 @@ export class Database {
       throw new Error("Database not connected");
     }
 
-    // Validate percentage
-    if (percentage <= 0 || percentage > 100) {
-      throw new Error("Percentage must be between 1 and 100");
+    const now = new Date();
+    
+    // Ensure percentage is a number, not a string or boolean
+    let percentageValue: number;
+    if (typeof percentage === 'number') {
+      percentageValue = percentage;
+    } else if (typeof percentage === 'string') {
+      percentageValue = parseFloat(percentage);
+    } else if (typeof percentage === 'boolean') {
+      // This shouldn't happen, but handle it gracefully
+      console.error("[Database] Invalid percentage type (boolean):", percentage);
+      percentageValue = 100; // Default to 100%
+    } else {
+      percentageValue = 100; // Default to 100%
+    }
+    
+    // Validate percentage value
+    if (isNaN(percentageValue) || percentageValue <= 0 || percentageValue > 100) {
+      throw new Error(`Percentage must be a number between 1 and 100, got: ${percentage} (${typeof percentage})`);
     }
 
-    const now = new Date();
-    const subscriber: Omit<CopySubscriber, "id"> = {
+    // Check if subscriber already exists
+    const { data: existing, error: findError } = await this.supabase
+      .from("copy_subscribers")
+      .select("*")
+      .eq("address", subscriberAddress.toLowerCase())
+      .eq("trader_address", traderAddress.toLowerCase())
+      .maybeSingle();
+
+    let data;
+    let error;
+
+    if (existing && !findError) {
+      // Update existing subscriber
+      const updateData: {
+        percentage: number;
+        active: boolean;
+        updated_at: string;
+      } = {
+        percentage: Number(percentageValue), // Explicitly convert to Number
+        active: true,
+        updated_at: now.toISOString(),
+      };
+      
+      console.log("[Database] Updating subscriber with data:", {
+        ...updateData,
+        percentageType: typeof updateData.percentage,
+        percentageValue: updateData.percentage,
+        percentageIsNumber: typeof updateData.percentage === 'number',
+        activeType: typeof updateData.active,
+      });
+      
+      const { data: updated, error: updateError } = await this.supabase
+        .from("copy_subscribers")
+        .update(updateData as any) // Type assertion to avoid TypeScript issues
+        .eq("address", subscriberAddress.toLowerCase())
+        .eq("trader_address", traderAddress.toLowerCase())
+        .select()
+        .single();
+
+      data = updated;
+      error = updateError;
+      
+      if (error) {
+        console.error("[Database] Update error details:", {
+          error: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+          updateData,
+        });
+      }
+    } else {
+      // Insert new subscriber - explicitly set all fields to avoid type issues
+      // Use object with explicit field order to avoid any serialization issues
+      const insertData = {
       address: subscriberAddress.toLowerCase(),
       trader_address: traderAddress.toLowerCase(),
-      percentage,
+        percentage: percentageValue, // Already validated as number
       active: true,
-      created_at: now,
-      updated_at: now,
+        created_at: now.toISOString(),
+        updated_at: now.toISOString(),
     };
 
-    const { data, error } = await this.supabase
+      // Double-check types before sending
+      if (typeof insertData.percentage !== 'number') {
+        throw new Error(`Percentage must be a number, got ${typeof insertData.percentage}: ${insertData.percentage}`);
+      }
+      if (typeof insertData.active !== 'boolean') {
+        throw new Error(`Active must be a boolean, got ${typeof insertData.active}: ${insertData.active}`);
+      }
+      
+      console.log("[Database] Inserting subscriber with data:", JSON.stringify(insertData, null, 2));
+      console.log("[Database] Types check:", {
+        percentage: typeof insertData.percentage,
+        percentageValue: insertData.percentage,
+        active: typeof insertData.active,
+        activeValue: insertData.active,
+      });
+      
+      const { data: inserted, error: insertError } = await this.supabase
       .from("copy_subscribers")
-      .upsert(
-        {
-          ...subscriber,
-        },
-        {
-          onConflict: "address,trader_address",
-        }
-      )
+        .insert(insertData)
       .select()
       .single();
+
+      data = inserted;
+      error = insertError;
+      
+      if (error) {
+        console.error("[Database] Insert error details:", {
+          error: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+          insertData,
+        });
+      }
+    }
 
     if (error) {
       throw new Error(`Failed to add subscriber: ${error.message}`);
@@ -424,27 +523,57 @@ export class Database {
     }
 
     const now = new Date();
-    const trader: Omit<MonitoredTrader, "id"> = {
-      address: address.toLowerCase(),
-      active: true,
-      created_at: now,
-      updated_at: now,
-    };
+    const traderAddress = address.toLowerCase();
 
-    const { data, error } = await this.supabase
+    // Check if trader already exists
+    const { data: existing, error: findError } = await this.supabase
       .from("monitored_traders")
-      .upsert(
-        {
-          ...trader,
-        },
-        {
-          onConflict: "address",
-        }
-      )
+      .select("*")
+      .eq("address", traderAddress)
+      .maybeSingle();
+
+    let data;
+    let error;
+
+    if (existing && !findError) {
+      // Update existing trader
+      const { data: updated, error: updateError } = await this.supabase
+        .from("monitored_traders")
+        .update({
+          active: true,
+          updated_at: now.toISOString(),
+        })
+        .eq("address", traderAddress)
+        .select()
+        .single();
+
+      data = updated;
+      error = updateError;
+    } else {
+      // Insert new trader
+      const { data: inserted, error: insertError } = await this.supabase
+        .from("monitored_traders")
+        .insert({
+          address: traderAddress,
+          active: true,
+          created_at: now.toISOString(),
+          updated_at: now.toISOString(),
+        })
       .select()
       .single();
 
+      data = inserted;
+      error = insertError;
+    }
+
     if (error) {
+      console.error("[Database] Failed to add monitored trader:", {
+        error: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        address: traderAddress,
+      });
       throw new Error(`Failed to add monitored trader: ${error.message}`);
     }
 

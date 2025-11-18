@@ -85,9 +85,22 @@ export class PolymarketEventListener extends EventEmitter {
       // Get the latest trade (first one, as API returns most recent first)
       const latestTrade = trades[0];
       
-      // Validate required fields: side and asset_id are mandatory
-      if (!latestTrade.side || !latestTrade.asset_id) {
-        console.log(`⚠️  Trade ${latestTrade.id} missing required fields (side or asset_id), skipping`);
+      // Map API field names to our expected format
+      // API returns "asset" but we need "asset_id"
+      const assetId = latestTrade.asset_id || latestTrade.asset || latestTrade.token_id;
+      const side = latestTrade.side;
+      
+      // Validate required fields: side and asset_id are mandatory for copy trading
+      // Note: Some activities from the API might be position updates, redemptions, etc.
+      // We only process actual trades that have side (BUY/SELL) and asset_id (token ID)
+      if (!side || !assetId) {
+        const tradeId = latestTrade.id || latestTrade.trade_id || latestTrade.transactionHash || 'unknown';
+        const activityType = latestTrade.type || latestTrade.activity_type || 'unknown';
+        console.log(`⚠️  Activity ${tradeId} (type: ${activityType}) missing required fields for copy trading:`);
+        console.log(`   - side: ${side || 'MISSING'}`);
+        console.log(`   - asset_id: ${assetId || 'MISSING'}`);
+        console.log(`   Available fields: asset=${latestTrade.asset}, asset_id=${latestTrade.asset_id}, token_id=${latestTrade.token_id}`);
+        console.log(`   This might be a ${activityType} event, not a trade. Skipping copy trade.`);
         return null;
       }
 
@@ -96,10 +109,16 @@ export class PolymarketEventListener extends EventEmitter {
       
       // Only return if this is a new trade (newer than last seen)
       if (tradeTimestamp > lastTimestamp) {
+        // Map API fields to our TradeData format
         const tradeData: TradeData = {
-          ...latestTrade,
+          id: latestTrade.transactionHash || latestTrade.id || `trade-${tradeTimestamp}`, // Use transactionHash as ID
           user: userAddress,
-          timestamp: latestTrade.match_time || latestTrade.timestamp,
+          market: latestTrade.title || latestTrade.slug || latestTrade.eventSlug || latestTrade.market || "unknown", // Map market field
+          asset_id: assetId, // Ensure asset_id is set (map from "asset" if needed)
+          side: side as "BUY" | "SELL",
+          size: String(latestTrade.size || latestTrade.usdcSize || "0"),
+          price: String(latestTrade.price || "0"),
+          timestamp: latestTrade.match_time || latestTrade.timestamp || new Date(tradeTimestamp).toISOString(),
         };
 
         // Update last timestamp BEFORE emitting (to prevent duplicate processing)
@@ -132,7 +151,19 @@ export class PolymarketEventListener extends EventEmitter {
         },
       });
 
-      return response.data.trades || response.data || [];
+      const trades = response.data.trades || response.data || [];
+      
+      // Log what we're getting for debugging
+      if (trades.length > 0) {
+        console.log(`📥 Fetched ${trades.length} activity items for ${userAddress}`);
+        // Log first trade structure to understand the format
+        if (trades[0]) {
+          console.log(`   Sample activity item keys:`, Object.keys(trades[0]));
+          console.log(`   Sample activity item:`, JSON.stringify(trades[0], null, 2).substring(0, 500));
+        }
+      }
+      
+      return trades;
     } catch (error) {
       console.error(`Error fetching trades for ${userAddress}:`, error);
       return [];

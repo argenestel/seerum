@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 import { Address } from "viem";
+import { useVault } from "./useVault";
 
 export interface CopySubscription {
   _id?: string;
@@ -14,9 +15,11 @@ export interface CopySubscription {
 
 /**
  * Hook to subscribe to copy trades from a trader
+ * Uses user's connected wallet address as subscriber (vault will be looked up when executing trades)
  */
 export function useSubscribeToTrader() {
   const { address } = useAccount();
+  const { data: vaultInfo } = useVault();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -25,14 +28,33 @@ export function useSubscribeToTrader() {
         throw new Error("Wallet not connected");
       }
 
+      if (!vaultInfo?.vaultAddress) {
+        throw new Error("Vault wallet not found. Please create a vault wallet first.");
+      }
+
+      if (!traderAddress) {
+        throw new Error("Trader address is required");
+      }
+
+      // Use user's connected wallet address as subscriber (vault will be looked up when executing trades)
+      const requestBody = {
+        subscriberAddress: address, // Use user's connected wallet address
+        traderAddress,
+        percentage: percentage !== undefined ? percentage : 100,
+      };
+
+      console.log("[useSubscribeToTrader] Subscribing:", {
+        userAddress: address,
+        vaultAddress: vaultInfo.vaultAddress,
+        subscriberAddress: requestBody.subscriberAddress,
+        traderAddress,
+        percentage: requestBody.percentage,
+      });
+
       const response = await fetch("/api/copy-trade/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          subscriberAddress: address,
-          traderAddress,
-          percentage: percentage !== undefined ? percentage : 100,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -51,9 +73,11 @@ export function useSubscribeToTrader() {
 
 /**
  * Hook to unsubscribe from copying a trader
+ * Uses user's connected wallet address as subscriber
  */
 export function useUnsubscribeFromTrader() {
   const { address } = useAccount();
+  const { data: vaultInfo } = useVault();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -62,11 +86,16 @@ export function useUnsubscribeFromTrader() {
         throw new Error("Wallet not connected");
       }
 
+      if (!vaultInfo?.vaultAddress) {
+        throw new Error("Vault wallet not found. Please create a vault wallet first.");
+      }
+
+      // Use user's connected wallet address as subscriber
       const response = await fetch("/api/copy-trade/subscribe", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          subscriberAddress: address,
+          subscriberAddress: address, // Use user's connected wallet address
           traderAddress,
         }),
       });
@@ -87,9 +116,11 @@ export function useUnsubscribeFromTrader() {
 
 /**
  * Hook to get user's copy trading subscriptions
+ * Fetches subscriptions for the user's connected wallet address
  */
 export function useCopySubscriptions() {
   const { address } = useAccount();
+  const { data: vaultInfo } = useVault();
 
   return useQuery<{ subscriptions: CopySubscription[]; count: number }>({
     queryKey: ["copySubscriptions", address],
@@ -98,6 +129,12 @@ export function useCopySubscriptions() {
         return { subscriptions: [], count: 0 };
       }
 
+      if (!vaultInfo?.vaultAddress) {
+        // No vault yet, return empty subscriptions
+        return { subscriptions: [], count: 0 };
+      }
+
+      // Fetch subscriptions for user's connected wallet address
       const response = await fetch(
         `/api/copy-trade/subscribe?userAddress=${address}`
       );
@@ -108,7 +145,7 @@ export function useCopySubscriptions() {
 
       return response.json();
     },
-    enabled: !!address,
+    enabled: !!address && !!vaultInfo?.vaultAddress,
     refetchInterval: 30000, // Refetch every 30 seconds
   });
 }
@@ -124,8 +161,14 @@ export function useIsSubscribedToTrader(traderAddress: Address | undefined) {
   }
 
   return subscriptions.subscriptions.some(
-    (sub) =>
-      sub.traderAddress.toLowerCase() === traderAddress.toLowerCase() &&
+    (sub) => {
+      // Handle both camelCase and snake_case formats
+      const subTraderAddress = sub.traderAddress || (sub as any).trader_address;
+      return (
+        subTraderAddress &&
+        subTraderAddress.toLowerCase() === traderAddress.toLowerCase() &&
       sub.active
+      );
+    }
   );
 }

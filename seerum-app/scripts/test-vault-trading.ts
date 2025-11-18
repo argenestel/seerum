@@ -18,8 +18,8 @@
  */
 
 import { Chain, ClobClient, OrderType, Side } from "@polymarket/clob-client";
-import { BuilderConfig } from "@polymarket/builder-signing-sdk";
-import { RelayClient } from "@polymarket/builder-relayer-client";
+import { BuilderConfig, BuilderApiKeyCreds } from "@polymarket/builder-signing-sdk";
+import { RelayClient, OperationType, SafeTransaction } from "@polymarket/builder-relayer-client";
 import { ethers } from "ethers";
 import { Wallet } from "@ethersproject/wallet";
 import { SignatureType } from "@polymarket/order-utils";
@@ -28,6 +28,7 @@ import { SAFE_FACTORY_ADDRESS } from "../lib/utils/safe-wallet";
 import { privateKeyToAccount } from "viem/accounts";
 import { createWalletClient, http, Hex } from "viem";
 import { polygon } from "viem/chains";
+import { Interface } from "ethers/lib/utils";
 
 const CLOB_HOST = "https://clob.polymarket.com";
 const CHAIN_ID = 137; // Polygon mainnet
@@ -35,6 +36,53 @@ const RELAYER_URL = "https://relayer-v2.polymarket.com/";
 const BUILDER_SIGNING_SERVER_URL =
   process.env.NEXT_PUBLIC_BUILDER_SIGNING_SERVER_URL || "http://localhost:3001";
 const RPC_URL = process.env.NEXT_PUBLIC_POLYGON_RPC_URL || "https://polygon-rpc.com";
+
+// USDC and CTF addresses on Polygon
+const USDC_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
+const CTF_ADDRESS = "0x4d97dcd97ec945f40cf65f87097ace5ea0476045"; // ConditionalTokensFramework
+
+// ERC20 approve interface
+const erc20Interface = new Interface([
+  {
+    constant: false,
+    inputs: [
+      { name: "_spender", type: "address" },
+      { name: "_value", type: "uint256" }
+    ],
+    name: "approve",
+    outputs: [{ name: "", type: "bool" }],
+    payable: false,
+    stateMutability: "nonpayable",
+    type: "function"
+  },
+  {
+    constant: true,
+    inputs: [
+      { name: "_owner", type: "address" },
+      { name: "_spender", type: "address" }
+    ],
+    name: "allowance",
+    outputs: [{ name: "", type: "uint256" }],
+    payable: false,
+    stateMutability: "view",
+    type: "function"
+  }
+]);
+
+/**
+ * Create USDC approve transaction for CTF
+ */
+function createUsdcApproveTxn(
+  token: string,
+  spender: string,
+): SafeTransaction {
+  return {
+    to: token,
+    operation: OperationType.Call,
+    data: erc20Interface.encodeFunctionData("approve", [spender, ethers.constants.MaxUint256]),
+    value: "0",
+  };
+}
 
 // Safe Factory ABI (simplified - only need computeProxyAddress)
 const SAFE_FACTORY_ABI = [
@@ -229,14 +277,67 @@ async function deploySafe(
       throw new Error(`Order value $${orderValue.toFixed(2)} is below minimum of $${MIN_ORDER_VALUE}`);
     }
 
-    // Check balance before creating order
-    console.log(`\n💰 Checking Polymarket balance...`);
+    // Check balance and allowance before creating order
+    console.log(`\n💰 Checking Polymarket balance and allowance...`);
     try {
       // For proxy wallets (Safe), the deposit address is the Safe address
       // For regular wallets, it's the wallet address
       const depositAddress = safeAddress; // Use Safe address as deposit address for proxy wallets
       console.log(`   Deposit Address: ${depositAddress}`);
       console.log(`   Wallet Address: ${wallet.address}`);
+      
+      // Check USDC allowance for CTF (ConditionalTokensFramework)
+      console.log(`\n   Checking USDC allowance for CTF...`);
+      const usdcContract = new ethers.Contract(
+        USDC_ADDRESS,
+        ["function allowance(address owner, address spender) view returns (uint256)"],
+        provider
+      );
+      const currentAllowance = await usdcContract.allowance(depositAddress, CTF_ADDRESS);
+      const allowanceFormatted = ethers.utils.formatUnits(currentAllowance, 6);
+      console.log(`   Current USDC Allowance: $${allowanceFormatted}`);
+      
+      if (currentAllowance.eq(0)) {
+        console.log(`   ⚠️  No allowance found! Approving USDC for CTF...`);
+        
+        // Create RelayClient for approval
+        const pk = privateKeyToAccount(`0x${vault.privateKey}` as Hex);
+        const walletClient = createWalletClient({
+          account: pk,
+          chain: polygon,
+          transport: http(RPC_URL)
+        });
+        
+        // Configure builder signing server (remote)
+        const builderConfig = new BuilderConfig({
+          remoteBuilderConfig: {
+            url: `${BUILDER_SIGNING_SERVER_URL}/sign`,
+          },
+        });
+        
+        const relayClient = new RelayClient(RELAYER_URL, CHAIN_ID, walletClient as any, builderConfig);
+        
+        // Create approve transaction
+        const approveTxn = createUsdcApproveTxn(USDC_ADDRESS, CTF_ADDRESS);
+        
+        console.log(`   Submitting approval transaction to relayer...`);
+        const approveResponse = await relayClient.execute([approveTxn], "Approve USDC for CTF");
+        const approveResult = await approveResponse.wait();
+        
+        if (!approveResult) {
+          throw new Error("Approval transaction failed - no result returned");
+        }
+        
+        console.log(`   ✅ USDC approved successfully!`);
+        console.log(`   Transaction Hash: ${approveResult.transactionHash}`);
+        console.log(`   State: ${approveResult.state}`);
+        
+        // Wait a bit for the approval to be processed
+        console.log(`   Waiting for approval to be confirmed...`);
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      } else {
+        console.log(`   ✅ USDC already approved for CTF`);
+      }
       
       // Try to get balance using getBalanceAllowance with correct asset type
       try {
@@ -287,12 +388,12 @@ async function deploySafe(
       }
       
       // Also check on-chain USDC balance
-      const usdcContract = new ethers.Contract(
-        "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", // USDC on Polygon
+      const usdcBalanceContract = new ethers.Contract(
+        USDC_ADDRESS,
         ["function balanceOf(address account) view returns (uint256)"],
         provider
       );
-      const onChainBalance = await usdcContract.balanceOf(depositAddress);
+      const onChainBalance = await usdcBalanceContract.balanceOf(depositAddress);
       const onChainBalanceFormatted = ethers.utils.formatUnits(onChainBalance, 6);
       console.log(`   On-Chain USDC Balance: $${onChainBalanceFormatted}`);
       
@@ -313,7 +414,7 @@ async function deploySafe(
     let response;
     try {
         const clobClient = new ClobClient(CLOB_HOST, CHAIN_ID, wallet, resp, 2, safeAddress);
-    const YES= '72230300298287057283776402697748671328525002237377884170696567504739749823402'
+    const YES= '80746058984644290629624903019922696017323803605256698757445938534814122585786'
         console.log(await clobClient.getBalanceAllowance());
       response = await clobClient.createMarketOrder(
         {
@@ -322,6 +423,7 @@ async function deploySafe(
         side: Side.BUY,
         }
       );
+      console.log(response);
       const postResponse = await clobClient.postOrder(response, OrderType.FAK);
       console.log(`✅ Order posted successfully:`);
       console.log(JSON.stringify(postResponse, null, 2));

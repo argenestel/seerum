@@ -231,9 +231,9 @@ export function VaultSetupModal({ isOpen, onClose }: VaultSetupModalProps) {
                   <span className="font-medium">Safe Deployed</span>
                 </div>
                 {safeInfo.safeAddress && (
-                  <p className="text-sm text-muted-foreground font-mono">
-                    {formatAddress(safeInfo.safeAddress)}
-                  </p>
+                <p className="text-sm text-muted-foreground font-mono">
+                  {formatAddress(safeInfo.safeAddress)}
+                </p>
                 )}
               </div>
             ) : (

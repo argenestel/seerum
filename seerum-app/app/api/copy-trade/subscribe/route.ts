@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
     // Check if listener server is reachable
     const isServerReachable = await checkListenerServer();
     if (!isServerReachable) {
+      console.error(`[Subscribe] Listener server not reachable at ${LISTENER_SERVER_URL}`);
       return NextResponse.json(
         {
           error: "Listener server not available",
@@ -44,12 +45,45 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch (parseError) {
+      console.error("[Subscribe] Failed to parse request body:", parseError);
+      return NextResponse.json(
+        {
+          error: "Invalid request body",
+          message: "Request body must be valid JSON",
+        },
+        { status: 400 }
+      );
+    }
+
     const { subscriberAddress, traderAddress, percentage } = body;
 
+    // Log the request body for debugging
+    console.log("[Subscribe] Request body:", {
+      subscriberAddress,
+      traderAddress,
+      percentage,
+      hasSubscriber: !!subscriberAddress,
+      hasTrader: !!traderAddress,
+    });
+
     if (!subscriberAddress || !traderAddress) {
+      console.error("[Subscribe] Missing required fields:", {
+        subscriberAddress: !!subscriberAddress,
+        traderAddress: !!traderAddress,
+        body,
+      });
       return NextResponse.json(
-        { error: "subscriberAddress and traderAddress are required" },
+        { 
+          error: "subscriberAddress and traderAddress are required",
+          received: {
+            subscriberAddress: !!subscriberAddress,
+            traderAddress: !!traderAddress,
+          }
+        },
         { status: 400 }
       );
     }
@@ -101,31 +135,84 @@ export async function POST(request: NextRequest) {
     if (!response.ok) {
       let errorData;
       try {
-        errorData = await response.json();
+        const text = await response.text();
+        try {
+          errorData = JSON.parse(text);
       } catch {
+          errorData = { 
+            error: `HTTP ${response.status}: ${response.statusText}`,
+            message: text || `Listener server returned status ${response.status}`
+          };
+        }
+      } catch (parseError) {
+        console.error("[Subscribe] Failed to parse error response:", parseError);
         errorData = { error: `HTTP ${response.status}: ${response.statusText}` };
       }
+      
+      console.error(`[Subscribe] Listener server error:`, {
+        status: response.status,
+        statusText: response.statusText,
+        errorData,
+        url: `${LISTENER_SERVER_URL}/subscribers`,
+      });
+      
       return NextResponse.json(
         {
           error: errorData.error || "Failed to subscribe",
           message: errorData.message || `Listener server returned status ${response.status}`,
         },
-        { status: response.status }
+        { status: response.status >= 400 && response.status < 600 ? response.status : 500 }
       );
     }
 
-    const data = await response.json();
+    let data;
+    try {
+      const text = await response.text();
+      try {
+        data = JSON.parse(text);
+      } catch {
+        console.error("[Subscribe] Failed to parse response as JSON:", text);
+        return NextResponse.json(
+          {
+            error: "Invalid response from listener server",
+            message: "Listener server returned non-JSON response",
+          },
+          { status: 502 }
+        );
+      }
+    } catch (parseError) {
+      console.error("[Subscribe] Failed to read response:", parseError);
+      return NextResponse.json(
+        {
+          error: "Failed to read response from listener server",
+          message: parseError instanceof Error ? parseError.message : "Unknown error",
+        },
+        { status: 502 }
+      );
+    }
+
     return NextResponse.json(data, {
       headers: {
         "Access-Control-Allow-Origin": "*",
       },
     });
   } catch (error) {
-    console.error("Subscribe error:", error);
+    console.error("[Subscribe] Unexpected error:", error);
+    console.error("[Subscribe] Error details:", {
+      name: error instanceof Error ? error.name : "Unknown",
+      message: error instanceof Error ? error.message : "Unknown error",
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     
     // Check if it's a connection error
-    if (errorMessage.includes("ECONNREFUSED") || errorMessage.includes("fetch failed")) {
+    if (
+      errorMessage.includes("ECONNREFUSED") || 
+      errorMessage.includes("fetch failed") ||
+      errorMessage.includes("network") ||
+      (error instanceof Error && error.name === "TypeError")
+    ) {
       return NextResponse.json(
         {
           error: "Listener server not reachable",
@@ -139,6 +226,7 @@ export async function POST(request: NextRequest) {
       {
         error: "Failed to subscribe",
         message: errorMessage,
+        details: process.env.NODE_ENV === "development" ? (error instanceof Error ? error.stack : undefined) : undefined,
       },
       { status: 500 }
     );
@@ -273,6 +361,20 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json();
+    
+    // Transform snake_case to camelCase for frontend compatibility
+    if (data.subscriptions && Array.isArray(data.subscriptions)) {
+      data.subscriptions = data.subscriptions.map((sub: any) => ({
+        _id: sub.id,
+        address: sub.address,
+        traderAddress: sub.trader_address || sub.traderAddress, // Support both formats
+        percentage: sub.percentage ? parseFloat(sub.percentage) : 100,
+        active: sub.active,
+        createdAt: sub.created_at,
+        updatedAt: sub.updated_at,
+      }));
+    }
+    
     return NextResponse.json(data, {
       headers: {
         "Access-Control-Allow-Origin": "*",
