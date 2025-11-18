@@ -178,11 +178,23 @@ export default function ProfilePage() {
           <p className="text-muted-foreground">Your Polymarket trading statistics and activity</p>
         </div>
 
-        {loadingProfile ? (
+        {(loadingProfile || isLoadingVaultInfo) ? (
           <div className="flex items-center justify-center min-h-[60vh]">
             <div className="text-center">
               <div className="h-8 w-8 border-2 border-current border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-              <p className="text-muted-foreground">Loading profile...</p>
+              <p className="text-muted-foreground">
+                {isLoadingVaultInfo ? "Loading vault information..." : "Loading profile..."}
+              </p>
+            </div>
+          </div>
+        ) : !statsAddress ? (
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="text-center">
+              <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h2 className="text-2xl font-semibold mb-2">No Address Available</h2>
+              <p className="text-muted-foreground">
+                Please connect your wallet or set up a vault to view your profile
+              </p>
             </div>
           </div>
         ) : (
