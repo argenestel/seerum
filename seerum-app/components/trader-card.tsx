@@ -28,7 +28,8 @@ export function TraderCard({ trader, rank }: TraderCardProps) {
   const handleSubscribe = async () => {
     if (!traderAddress) return;
     try {
-      await subscribe.mutateAsync(traderAddress);
+      // Default to 100% copy percentage (can be made configurable later)
+      await subscribe.mutateAsync({ traderAddress, percentage: 100 });
     } catch (error) {
       console.error("Subscribe error:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to subscribe";

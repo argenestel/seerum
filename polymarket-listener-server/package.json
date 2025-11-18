@@ -8,7 +8,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "setup-supabase": "tsx scripts/setup-supabase.ts",
-    "verify-supabase": "tsx scripts/verify-supabase.ts"
+    "verify-supabase": "tsx scripts/verify-supabase.ts",
+    "test-copy-trade": "tsx scripts/test-copy-trade.ts"
   },
   "keywords": ["polymarket", "events", "listener"],
   "author": "",

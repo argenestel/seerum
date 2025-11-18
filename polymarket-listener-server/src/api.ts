@@ -54,14 +54,22 @@ export function createApiServer(
   // Add a subscriber (subscribe to copy trades from a trader)
   app.post("/subscribers", async (req, res) => {
     try {
-      const { subscriberAddress, traderAddress } = req.body;
+      const { subscriberAddress, traderAddress, percentage } = req.body;
       if (!subscriberAddress || !traderAddress) {
         return res.status(400).json({
           error: "subscriberAddress and traderAddress are required",
         });
       }
 
-      const subscriber = await database.addSubscriber(subscriberAddress, traderAddress);
+      // Validate percentage if provided
+      const copyPercentage = percentage !== undefined ? parseFloat(percentage) : 100;
+      if (isNaN(copyPercentage) || copyPercentage <= 0 || copyPercentage > 100) {
+        return res.status(400).json({
+          error: "percentage must be a number between 1 and 100",
+        });
+      }
+
+      const subscriber = await database.addSubscriber(subscriberAddress, traderAddress, copyPercentage);
       
       // Start monitoring trader if not already monitoring
       if (!listener.isMonitoringUser(traderAddress)) {
@@ -70,7 +78,7 @@ export function createApiServer(
 
       res.json({
         subscriber,
-        message: `Subscriber ${subscriberAddress} added for trader ${traderAddress}`,
+        message: `Subscriber ${subscriberAddress} added for trader ${traderAddress} with ${copyPercentage}% copy percentage`,
       });
     } catch (error) {
       res.status(500).json({

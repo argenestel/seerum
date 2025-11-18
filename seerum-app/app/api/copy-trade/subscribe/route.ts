@@ -45,11 +45,20 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { subscriberAddress, traderAddress } = body;
+    const { subscriberAddress, traderAddress, percentage } = body;
 
     if (!subscriberAddress || !traderAddress) {
       return NextResponse.json(
         { error: "subscriberAddress and traderAddress are required" },
+        { status: 400 }
+      );
+    }
+
+    // Validate percentage if provided
+    let copyPercentage = percentage !== undefined ? parseFloat(percentage) : 100;
+    if (isNaN(copyPercentage) || copyPercentage <= 0 || copyPercentage > 100) {
+      return NextResponse.json(
+        { error: "percentage must be a number between 1 and 100" },
         { status: 400 }
       );
     }
@@ -64,6 +73,7 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify({
           subscriberAddress,
           traderAddress,
+          percentage: copyPercentage,
         }),
         // Add timeout
         signal: AbortSignal.timeout(10000), // 10 second timeout

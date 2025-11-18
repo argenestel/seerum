@@ -25,6 +25,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "dotenv": "^17.2.3",
     "ethers": "^5.8.0",
     "lucide-react": "^0.554.0",
     "mongodb": "^7.0.0",

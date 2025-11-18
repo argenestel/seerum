@@ -6,6 +6,7 @@ export interface CopySubscription {
   _id?: string;
   address: string; // Subscriber's address
   traderAddress: string; // Trader's address being copied
+  percentage?: number; // Percentage of trade size to copy (1-100, default 100)
   active: boolean;
   createdAt: string;
   updatedAt: string;
@@ -19,7 +20,7 @@ export function useSubscribeToTrader() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (traderAddress: Address) => {
+    mutationFn: async ({ traderAddress, percentage }: { traderAddress: Address; percentage?: number }) => {
       if (!address) {
         throw new Error("Wallet not connected");
       }
@@ -30,6 +31,7 @@ export function useSubscribeToTrader() {
         body: JSON.stringify({
           subscriberAddress: address,
           traderAddress,
+          percentage: percentage !== undefined ? percentage : 100,
         }),
       });
 

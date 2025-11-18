@@ -14,6 +14,7 @@ export interface CopySubscriber {
   id?: string;
   address: string; // Subscriber's address (who wants to copy trades)
   trader_address: string; // Trader's address (who to copy FROM)
+  percentage?: number; // Percentage of trade size to copy (1-100, default 100)
   active: boolean;
   created_at: Date;
   updated_at: Date;
@@ -229,16 +230,27 @@ export class Database {
    * Add a copy trading subscriber
    * @param subscriberAddress - Address of user who wants to copy trades
    * @param traderAddress - Address of trader to copy FROM
+   * @param percentage - Percentage of trade size to copy (1-100, default 100)
    */
-  async addSubscriber(subscriberAddress: string, traderAddress: string): Promise<CopySubscriber> {
+  async addSubscriber(
+    subscriberAddress: string,
+    traderAddress: string,
+    percentage: number = 100
+  ): Promise<CopySubscriber> {
     if (!this.supabase) {
       throw new Error("Database not connected");
+    }
+
+    // Validate percentage
+    if (percentage <= 0 || percentage > 100) {
+      throw new Error("Percentage must be between 1 and 100");
     }
 
     const now = new Date();
     const subscriber: Omit<CopySubscriber, "id"> = {
       address: subscriberAddress.toLowerCase(),
       trader_address: traderAddress.toLowerCase(),
+      percentage,
       active: true,
       created_at: now,
       updated_at: now,
@@ -268,6 +280,7 @@ export class Database {
       id: data.id,
       address: data.address,
       trader_address: data.trader_address,
+      percentage: data.percentage ? parseFloat(data.percentage) : 100,
       active: data.active,
       created_at: new Date(data.created_at),
       updated_at: new Date(data.updated_at),
@@ -340,6 +353,7 @@ export class Database {
       id: sub.id,
       address: sub.address,
       trader_address: sub.trader_address,
+      percentage: sub.percentage ? parseFloat(sub.percentage) : 100,
       active: sub.active,
       created_at: new Date(sub.created_at),
       updated_at: new Date(sub.updated_at),
@@ -368,6 +382,7 @@ export class Database {
       id: sub.id,
       address: sub.address,
       trader_address: sub.trader_address,
+      percentage: sub.percentage ? parseFloat(sub.percentage) : 100,
       active: sub.active,
       created_at: new Date(sub.created_at),
       updated_at: new Date(sub.updated_at),

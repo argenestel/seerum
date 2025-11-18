@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS copy_subscribers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   address TEXT NOT NULL,
   trader_address TEXT NOT NULL,
+  percentage NUMERIC(5,2) DEFAULT 100.00 CHECK (percentage > 0 AND percentage <= 100),
   active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),

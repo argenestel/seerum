@@ -108,16 +108,17 @@ export class EventProcessor extends EventEmitter {
 
   /**
    * Execute copy trade for a subscriber using their vault wallet
+   * Uses createMarketOrder with Safe address (like test-vault-trading.ts)
    */
   async executeCopyTrade(
     targetUser: string,
     tradeData: TradeData,
-    copyAmount?: string
+    percentage: number = 100
   ): Promise<boolean> {
     console.log(`\n🔄 Executing copy trade for user ${targetUser}:`);
     console.log(`   Copying trade: ${tradeData.id}`);
     console.log(`   Original size: ${tradeData.size}`);
-    console.log(`   Copy size: ${copyAmount || tradeData.size}`);
+    console.log(`   Percentage: ${percentage}%`);
 
     try {
       // Get subscriber's vault wallet from database
@@ -127,66 +128,90 @@ export class EventProcessor extends EventEmitter {
         return false;
       }
 
+      // Get Safe address for the vault
+      const safeAddress = await this.getSafeAddressForVault(vault.vault_address);
+      if (!safeAddress) {
+        console.error(`❌ Could not determine Safe address for vault ${vault.vault_address}`);
+        return false;
+      }
+
       // Import CLOB client utilities
       const { ClobClient, Side, OrderType } = await import("@polymarket/clob-client");
       const { SignatureType } = await import("@polymarket/order-utils");
       const { ethers } = await import("ethers");
       const { Wallet } = await import("@ethersproject/wallet");
 
+      const CLOB_HOST = "https://clob.polymarket.com";
+      const CHAIN_ID = 137; // Polygon mainnet
+      const RPC_URL = process.env.POLYGON_RPC_URL || process.env.NEXT_PUBLIC_POLYGON_RPC_URL || "https://polygon-rpc.com";
+
       // Create wallet from vault private key
       const wallet = new Wallet(vault.private_key);
-      const provider = new ethers.providers.JsonRpcProvider(
-        process.env.POLYGON_RPC_URL || "https://polygon-rpc.com"
-      );
+      const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
       const connectedWallet = wallet.connect(provider);
 
-      // Create CLOB client
-      // Note: Using minimal constructor - adjust based on your ClobClient version
-      const client = new ClobClient(
-        "https://clob.polymarket.com",
-        137, // Polygon
-        connectedWallet
-      );
+      // Create initial CLOB client to get API credentials
+      const tempClient = new ClobClient(CLOB_HOST, CHAIN_ID, connectedWallet);
+      const apiCreds = await (tempClient as any).createOrDeriveApiKey();
 
-      // Try to set up API credentials if methods exist
-      try {
-        if (typeof (client as any).create_or_derive_api_creds === "function") {
-          const apiCreds = await (client as any).create_or_derive_api_creds();
-          if (typeof (client as any).set_api_creds === "function") {
-            (client as any).set_api_creds(apiCreds);
-          }
-        }
-      } catch (e) {
-        console.log("⚠️  API credentials setup skipped");
-      }
+      // Create CLOB client with Safe address (signature type 2 = POLY_PROXY)
+      const client = new ClobClient(
+        CLOB_HOST,
+        CHAIN_ID,
+        connectedWallet,
+        apiCreds,
+        2, // SignatureType.POLY_PROXY
+        safeAddress
+      );
 
       // Parse trade parameters
       const side = tradeData.side === "BUY" ? Side.BUY : Side.SELL;
-      const size = parseFloat(copyAmount || tradeData.size);
-      const price = parseFloat(tradeData.price);
+      const originalSize = parseFloat(tradeData.size);
+      const originalPrice = parseFloat(tradeData.price);
       const tokenId = tradeData.asset_id;
 
-      if (!tokenId || !side || isNaN(size) || isNaN(price)) {
+      if (!tokenId || !side || isNaN(originalSize) || isNaN(originalPrice)) {
         console.error(`❌ Invalid trade parameters`);
         return false;
       }
 
-      // Create and post order
-      const order = await client.createOrder({
+      // Calculate order value (price * size)
+      const originalOrderValue = originalPrice * originalSize;
+      
+      // Scale by percentage
+      const scaledOrderValue = (originalOrderValue * percentage) / 100;
+      
+      // Minimum order value is $1
+      const MIN_ORDER_VALUE = 1.0;
+      const finalOrderValue = Math.max(scaledOrderValue, MIN_ORDER_VALUE);
+      
+      console.log(`   Original order value: $${originalOrderValue.toFixed(2)}`);
+      console.log(`   Scaled order value (${percentage}%): $${scaledOrderValue.toFixed(2)}`);
+      console.log(`   Final order value (min $${MIN_ORDER_VALUE}): $${finalOrderValue.toFixed(2)}`);
+
+      // Create market order (amount is in USD, not size)
+      // Using type assertion as createMarketOrder may not be in types yet
+      const order = await (client as any).createMarketOrder({
         tokenID: tokenId,
-        side,
-        size,
-        price,
+        amount: finalOrderValue, // Amount in USD
+        side: side,
       });
 
-      const response = await client.postOrder(order, OrderType.GTC);
+      // Post order with FAK (Fill or Kill) type
+      // OrderType.FAK should exist, but using type assertion for safety
+      const orderType = (OrderType as any).FAK ?? OrderType.GTC; // Fallback to GTC if FAK doesn't exist
+      const response = await client.postOrder(order, orderType);
 
       console.log(`✅ Copy trade executed for ${targetUser}:`);
       console.log(`   Order ID: ${response.order_id || response.id || "N/A"}`);
+      console.log(`   Safe Address: ${safeAddress}`);
       return true;
     } catch (error: any) {
       console.error(`❌ Failed to execute copy trade for ${targetUser}: ${error.message}`);
       console.error("   Full error:", error);
+      if (error?.response?.data) {
+        console.error("   Error details:", JSON.stringify(error.response.data, null, 2));
+      }
       return false;
     }
   }
@@ -194,7 +219,7 @@ export class EventProcessor extends EventEmitter {
   /**
    * Get vault wallet for a user from Supabase
    */
-  private async getVaultForUser(userAddress: string): Promise<{ private_key: string } | null> {
+  private async getVaultForUser(userAddress: string): Promise<{ private_key: string; vault_address: string } | null> {
     try {
       // Access Supabase from database instance
       const supabase = (this.config.database as any).supabase;
@@ -205,7 +230,7 @@ export class EventProcessor extends EventEmitter {
 
       const { data, error } = await supabase
         .from("vaults")
-        .select("private_key")
+        .select("private_key, vault_address")
         .eq("user_address", userAddress.toLowerCase())
         .single();
 
@@ -218,13 +243,64 @@ export class EventProcessor extends EventEmitter {
         return null;
       }
 
-      if (!data || !data.private_key) {
+      if (!data || !data.private_key || !data.vault_address) {
         return null;
       }
 
-      return { private_key: data.private_key };
+      return { 
+        private_key: data.private_key,
+        vault_address: data.vault_address
+      };
     } catch (error: any) {
       console.error(`❌ Exception fetching vault: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Get Safe address for a vault address
+   * Computes the Safe address using the factory contract
+   */
+  private async getSafeAddressForVault(vaultAddress: string): Promise<string | null> {
+    try {
+      const { ethers } = await import("ethers");
+      const SAFE_FACTORY_ADDRESS = "0xaacFeEa03eb1561C4e67d661e40682Bd20E3541b";
+      const SAFE_FACTORY_ABI = [
+        {
+          inputs: [{ internalType: "address", name: "user", type: "address" }],
+          name: "computeProxyAddress",
+          outputs: [{ internalType: "address", name: "", type: "address" }],
+          stateMutability: "view",
+          type: "function",
+        },
+      ];
+
+      const RPC_URL = process.env.POLYGON_RPC_URL || process.env.NEXT_PUBLIC_POLYGON_RPC_URL || "https://polygon-rpc.com";
+      const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
+
+      // Get Safe factory contract
+      const factory = new ethers.Contract(
+        SAFE_FACTORY_ADDRESS,
+        SAFE_FACTORY_ABI,
+        provider
+      );
+
+      // Compute Safe address
+      const safeAddress = await factory.computeProxyAddress(vaultAddress);
+
+      // Check if Safe is deployed by checking bytecode
+      const code = await provider.getCode(safeAddress);
+      const deployed = !!(code && code !== "0x");
+
+      if (!deployed) {
+        console.log(`⚠️  Safe wallet not deployed yet for vault ${vaultAddress}`);
+        console.log(`   Computed Safe address: ${safeAddress}`);
+        console.log(`   💡 Safe will be deployed automatically on first use`);
+      }
+
+      return safeAddress;
+    } catch (error: any) {
+      console.error(`❌ Error computing Safe address: ${error.message}`);
       return null;
     }
   }
@@ -249,7 +325,8 @@ export class EventProcessor extends EventEmitter {
     // Execute copy trade for each subscriber
     for (const subscriber of subscribers) {
       try {
-        const success = await this.executeCopyTrade(subscriber.address, tradeData);
+        const percentage = subscriber.percentage || 100;
+        const success = await this.executeCopyTrade(subscriber.address, tradeData, percentage);
         if (success) {
           copiedTo.push(subscriber.address);
         } else {
