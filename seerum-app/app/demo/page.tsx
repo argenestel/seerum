@@ -2,13 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { useAccount } from "wagmi";
-import { useSafeWalletStatus, useDeploySafe, useDepositUSDC } from "@/lib/hooks/useSafeWallet";
+import { useSafeWalletStatus, useDeploySafe } from "@/lib/hooks/useSafeWallet";
 import { useTradeClient } from "@/lib/hooks/useTradeClient";
 import { formatAddress, formatCurrency } from "@/lib/utils";
 import {
   ArrowLeft,
   Wallet,
-  DollarSign,
   TrendingUp,
   Loader2,
   CheckCircle2,
@@ -34,11 +33,9 @@ export default function DemoTradingPage() {
   const { address, isConnected } = useAccount();
   const { data: safeStatus, isLoading: checkingSafe, refetch: refetchSafe } = useSafeWalletStatus();
   const deploySafe = useDeploySafe();
-  const depositUSDC = useDepositUSDC();
   const tradeClient = useTradeClient();
 
-  const [step, setStep] = useState<"setup" | "deposit" | "trade">("setup");
-  const [depositAmount, setDepositAmount] = useState("");
+  const [step, setStep] = useState<"setup" | "trade">("setup");
   const [tradeSize, setTradeSize] = useState("");
   const [selectedOutcome, setSelectedOutcome] = useState<string>("");
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
@@ -56,13 +53,118 @@ export default function DemoTradingPage() {
 
   const market = marketData?.market;
 
-  // Get token IDs for outcomes
-  const outcomeTokenIds = market?.clobTokenIds || {};
-  const outcomes = market?.outcomes || ["Yes", "No"];
+  // Debug: Log market data to console
+  useEffect(() => {
+    if (market) {
+      console.log("Market data:", market);
+      console.log("clobTokenIds:", market.clobTokenIds);
+      console.log("tokens:", market.tokens);
+      console.log("outcomes:", market.outcomes);
+    }
+  }, [market]);
+
+  // Normalize outcomes to always be an array
+  const normalizeOutcomes = (outcomes: any): string[] => {
+    if (!outcomes) return ["Yes", "No"];
+    if (Array.isArray(outcomes)) return outcomes;
+    if (typeof outcomes === "object") return Object.keys(outcomes);
+    return ["Yes", "No"];
+  };
+  
+  const outcomes = normalizeOutcomes(market?.outcomes);
+
+  // Extract token IDs from market data
+  // Market data can have token IDs in different formats:
+  // 1. clobTokenIds object: { "Yes": "tokenId1", "No": "tokenId2" }
+  // 2. tokens array: [{ outcome: "Yes", tokenId: "..." }, ...]
+  // 3. markets array (if event): markets[0].tokens or markets[0].clobTokenIds
+  const getTokenIds = (market: Market | undefined): { [key: string]: string } => {
+    if (!market) return {};
+    
+    // Try clobTokenIds first
+    if (market.clobTokenIds && typeof market.clobTokenIds === "object") {
+      return market.clobTokenIds;
+    }
+    
+    // Try tokens array
+    if (market.tokens && Array.isArray(market.tokens)) {
+      const tokenMap: { [key: string]: string } = {};
+      market.tokens.forEach((token: any) => {
+        if (token.outcome && token.tokenId) {
+          tokenMap[token.outcome] = token.tokenId;
+        }
+      });
+      if (Object.keys(tokenMap).length > 0) return tokenMap;
+    }
+    
+    // Try markets array (if this is an event with markets)
+    if (market.markets && Array.isArray(market.markets) && market.markets.length > 0) {
+      const firstMarket = market.markets[0];
+      if (firstMarket.clobTokenIds) return firstMarket.clobTokenIds;
+      if (firstMarket.tokens && Array.isArray(firstMarket.tokens)) {
+        const tokenMap: { [key: string]: string } = {};
+        firstMarket.tokens.forEach((token: any) => {
+          if (token.outcome && token.tokenId) {
+            tokenMap[token.outcome] = token.tokenId;
+          }
+        });
+        if (Object.keys(tokenMap).length > 0) return tokenMap;
+      }
+    }
+    
+    return {};
+  };
+
+  const outcomeTokenIds = getTokenIds(market);
+  
+  // Map Yes/No to actual token IDs
+  // Handle case-insensitive matching and common variations
+  const getTokenIdForOutcome = (outcome: string): string | null => {
+    if (!outcome || !outcomeTokenIds) return null;
+    
+    // Direct match
+    if (outcomeTokenIds[outcome]) return outcomeTokenIds[outcome];
+    
+    // Case-insensitive match
+    const lowerOutcome = outcome.toLowerCase();
+    for (const key in outcomeTokenIds) {
+      if (key.toLowerCase() === lowerOutcome) {
+        return outcomeTokenIds[key];
+      }
+    }
+    
+    // Map common variations
+    if (lowerOutcome === "yes") {
+      // Try to find Yes token
+      for (const key in outcomeTokenIds) {
+        if (key.toLowerCase().includes("yes") || key.toLowerCase() === "y") {
+          return outcomeTokenIds[key];
+        }
+      }
+    }
+    
+    if (lowerOutcome === "no") {
+      // Try to find No token
+      for (const key in outcomeTokenIds) {
+        if (key.toLowerCase().includes("no") || key.toLowerCase() === "n") {
+          return outcomeTokenIds[key];
+        }
+      }
+    }
+    
+    // If we have exactly 2 tokens, map Yes to first, No to second
+    const tokenKeys = Object.keys(outcomeTokenIds);
+    if (tokenKeys.length === 2) {
+      if (lowerOutcome === "yes") return outcomeTokenIds[tokenKeys[0]];
+      if (lowerOutcome === "no") return outcomeTokenIds[tokenKeys[1]];
+    }
+    
+    return null;
+  };
 
   useEffect(() => {
     if (safeStatus?.exists && safeStatus?.isSafe) {
-      setStep("deposit");
+      setStep("trade");
     }
   }, [safeStatus]);
 
@@ -78,31 +180,12 @@ export default function DemoTradingPage() {
       if (result.safeAddress) {
         alert(`Safe wallet deployed!\nAddress: ${result.safeAddress}\nTransaction: ${result.transactionHash}`);
         refetchSafe();
-        setStep("deposit");
+        setStep("trade");
       }
     } catch (error) {
       console.error("Failed to deploy Safe:", error);
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
       alert(`Failed to deploy Safe: ${errorMessage}`);
-    }
-  };
-
-  const handleDeposit = async () => {
-    if (!safeStatus?.address || !depositAmount) {
-      alert("Please enter deposit amount");
-      return;
-    }
-
-    try {
-      const result = await depositUSDC.mutateAsync({
-        safeAddress: safeStatus.address,
-        amount: depositAmount,
-      });
-      alert(`Deposit successful! Transaction: ${result.hash}`);
-      setStep("trade");
-    } catch (error) {
-      console.error("Failed to deposit:", error);
-      alert("Failed to deposit USDC. Please check your balance and try again.");
     }
   };
 
@@ -117,9 +200,11 @@ export default function DemoTradingPage() {
       return;
     }
 
-    const tokenId = outcomeTokenIds[selectedOutcome];
+    const tokenId = getTokenIdForOutcome(selectedOutcome);
     if (!tokenId) {
-      alert("Token ID not found for selected outcome");
+      console.error("Token IDs available:", outcomeTokenIds);
+      console.error("Selected outcome:", selectedOutcome);
+      alert(`Token ID not found for selected outcome "${selectedOutcome}". Available tokens: ${Object.keys(outcomeTokenIds).join(", ")}`);
       return;
     }
 
@@ -185,7 +270,7 @@ export default function DemoTradingPage() {
 
         <h1 className="text-4xl font-bold mb-2">Demo Trading</h1>
         <p className="text-muted-foreground mb-8">
-          Deploy Safe, deposit funds, and buy shares gaslessly using the relayer
+          Deploy Safe and buy shares gaslessly using the relayer
         </p>
 
         {/* Market Preview - Always Visible */}
@@ -195,32 +280,73 @@ export default function DemoTradingPage() {
             <span className="ml-2 text-muted-foreground">Loading market...</span>
           </div>
         ) : market ? (
-          <div className="backdrop-blur-xl bg-white/5 dark:bg-black/5 border border-border rounded-2xl p-6 mb-8">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <h2 className="text-xl font-semibold mb-2">{market.question}</h2>
-                <div className="flex flex-wrap gap-2 mt-3">
-                  {outcomes.map((outcome) => (
-                    <span
-                      key={outcome}
-                      className="px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium"
-                    >
-                      {outcome}
-                    </span>
-                  ))}
+          <>
+            <div className="backdrop-blur-xl bg-white/5 dark:bg-black/5 border border-border rounded-2xl p-6 mb-8">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <h2 className="text-xl font-semibold mb-2">{market.question}</h2>
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {outcomes.map((outcome) => (
+                      <span
+                        key={outcome}
+                        className="px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium"
+                      >
+                        {outcome}
+                      </span>
+                    ))}
+                  </div>
                 </div>
+                <a
+                  href={`https://polymarket.com/market/${market.slug || market.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-4 text-primary hover:underline flex items-center gap-1 text-sm"
+                >
+                  View on Polymarket
+                  <ExternalLink className="h-4 w-4" />
+                </a>
               </div>
-              <a
-                href={`https://polymarket.com/market/${market.slug || market.id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="ml-4 text-primary hover:underline flex items-center gap-1 text-sm"
-              >
-                View on Polymarket
-                <ExternalLink className="h-4 w-4" />
-              </a>
             </div>
-          </div>
+
+            {/* Debug: Raw Market Data */}
+            <div className="backdrop-blur-xl bg-white/5 dark:bg-black/5 border border-border rounded-2xl p-6 mb-8">
+              <h3 className="text-lg font-semibold mb-4">Debug: Raw Market Data</h3>
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-sm font-medium mb-2 text-muted-foreground">Extracted Token IDs:</h4>
+                  <pre className="bg-background/50 p-3 rounded-lg text-xs overflow-auto max-h-32">
+                    {JSON.stringify(outcomeTokenIds, null, 2)}
+                  </pre>
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium mb-2 text-muted-foreground">Market clobTokenIds:</h4>
+                  <pre className="bg-background/50 p-3 rounded-lg text-xs overflow-auto max-h-32">
+                    {JSON.stringify(market.clobTokenIds, null, 2)}
+                  </pre>
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium mb-2 text-muted-foreground">Market tokens array:</h4>
+                  <pre className="bg-background/50 p-3 rounded-lg text-xs overflow-auto max-h-32">
+                    {JSON.stringify(market.tokens, null, 2)}
+                  </pre>
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium mb-2 text-muted-foreground">Market outcomes:</h4>
+                  <pre className="bg-background/50 p-3 rounded-lg text-xs overflow-auto max-h-32">
+                    {JSON.stringify(market.outcomes, null, 2)}
+                  </pre>
+                </div>
+                <details className="mt-4">
+                  <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
+                    Full Market Object (click to expand)
+                  </summary>
+                  <pre className="bg-background/50 p-3 rounded-lg text-xs overflow-auto max-h-96 mt-2">
+                    {JSON.stringify(market, null, 2)}
+                  </pre>
+                </details>
+              </div>
+            </div>
+          </>
         ) : (
           <div className="backdrop-blur-xl bg-white/5 dark:bg-black/5 border border-border rounded-2xl p-6 mb-8">
             <div className="text-center py-8 text-muted-foreground">
@@ -234,14 +360,12 @@ export default function DemoTradingPage() {
         <div className="flex items-center gap-4 mb-8">
           {[
             { id: "setup", label: "1. Setup Safe", icon: Wallet },
-            { id: "deposit", label: "2. Deposit", icon: DollarSign },
-            { id: "trade", label: "3. Trade", icon: TrendingUp },
+            { id: "trade", label: "2. Trade", icon: TrendingUp },
           ].map((s, idx) => {
             const Icon = s.icon;
             const isActive = step === s.id;
             const isCompleted =
               (s.id === "setup" && safeStatus?.exists) ||
-              (s.id === "deposit" && step === "trade") ||
               (s.id === "trade" && step === "trade");
 
             return (
@@ -256,7 +380,7 @@ export default function DemoTradingPage() {
                   <Icon className="h-4 w-4" />
                   <span className="text-sm font-medium">{s.label}</span>
                 </div>
-                {idx < 2 && (
+                {idx < 1 && (
                   <div
                     className={`h-0.5 w-8 ${
                       isCompleted ? "bg-primary" : "bg-muted"
@@ -289,10 +413,10 @@ export default function DemoTradingPage() {
                   <div className="font-mono text-sm">{formatAddress(safeStatus.address)}</div>
                 </div>
                 <button
-                  onClick={() => setStep("deposit")}
+                  onClick={() => setStep("trade")}
                   className="w-full px-4 py-3 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-all"
                 >
-                  Continue to Deposit
+                  Continue to Trade
                 </button>
               </div>
             ) : (
@@ -323,59 +447,11 @@ export default function DemoTradingPage() {
           </div>
         )}
 
-        {/* Step 2: Deposit */}
-        {step === "deposit" && safeStatus?.exists && safeStatus?.isSafe && (
-          <div className="backdrop-blur-xl bg-white/5 dark:bg-black/5 border border-border rounded-2xl p-6">
-            <h2 className="text-2xl font-semibold mb-4">Step 2: Deposit USDC</h2>
-            <p className="text-muted-foreground mb-4">
-              Deposit USDC to your Safe wallet to start trading
-            </p>
-
-            <div className="space-y-4">
-              <div className="backdrop-blur-md bg-white/5 dark:bg-black/5 rounded-lg p-4">
-                <div className="text-sm text-muted-foreground mb-1">Safe Address</div>
-                <div className="font-mono text-sm">{formatAddress(safeStatus.address)}</div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Deposit Amount (USDC)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={depositAmount}
-                  onChange={(e) => setDepositAmount(e.target.value)}
-                  placeholder="0.00"
-                  className="w-full rounded-lg bg-background border border-border px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-
-              <button
-                onClick={handleDeposit}
-                disabled={depositUSDC.isPending || !depositAmount}
-                className="w-full px-4 py-3 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {depositUSDC.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Depositing...
-                  </>
-                ) : (
-                  <>
-                    <DollarSign className="h-4 w-4" />
-                    Deposit USDC
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 3: Trade */}
+        {/* Step 2: Trade */}
         {step === "trade" && (
           <div className="space-y-6">
             <div className="backdrop-blur-xl bg-white/5 dark:bg-black/5 border border-border rounded-2xl p-6">
-              <h2 className="text-2xl font-semibold mb-4">Step 3: Place Trade</h2>
+              <h2 className="text-2xl font-semibold mb-4">Step 2: Place Trade</h2>
 
               {!market ? (
                 <div className="text-center py-8 text-muted-foreground">
@@ -387,20 +463,37 @@ export default function DemoTradingPage() {
                   <div>
                     <label className="block text-sm font-medium mb-2">Select Outcome</label>
                     <div className="grid grid-cols-2 gap-2">
-                      {outcomes.map((outcome) => (
-                        <button
-                          key={outcome}
-                          onClick={() => setSelectedOutcome(outcome)}
-                          className={`px-4 py-3 rounded-lg border transition-all ${
-                            selectedOutcome === outcome
-                              ? "bg-primary text-primary-foreground border-primary"
-                              : "bg-background border-border hover:bg-white/5 dark:hover:bg-black/5"
-                          }`}
-                        >
-                          {outcome}
-                        </button>
-                      ))}
+                      {outcomes.map((outcome) => {
+                        const tokenId = getTokenIdForOutcome(outcome);
+                        const hasTokenId = !!tokenId;
+                        return (
+                          <button
+                            key={outcome}
+                            onClick={() => setSelectedOutcome(outcome)}
+                            disabled={!hasTokenId}
+                            className={`px-4 py-3 rounded-lg border transition-all ${
+                              selectedOutcome === outcome
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "bg-background border-border hover:bg-white/5 dark:hover:bg-black/5"
+                            } ${!hasTokenId ? "opacity-50 cursor-not-allowed" : ""}`}
+                            title={!hasTokenId ? "Token ID not available" : undefined}
+                          >
+                            <div className="font-medium">{outcome}</div>
+                            {hasTokenId && (
+                              <div className="text-xs mt-1 opacity-70 font-mono">
+                                {tokenId?.slice(0, 10)}...
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
+                    {Object.keys(outcomeTokenIds).length === 0 && (
+                      <div className="mt-2 text-xs text-yellow-500 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        Token IDs not found in market data. Debug info logged to console.
+                      </div>
+                    )}
                   </div>
 
                   <div>

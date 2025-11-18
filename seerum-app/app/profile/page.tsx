@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
+import { CopyTrading } from "@/components/my-subscriptions";
+import { VaultWallet } from "@/components/vault-wallet";
 import {
   LineChart,
   Line,
@@ -246,6 +248,12 @@ export default function ProfilePage() {
                 <p className="text-2xl font-bold">{activity.length}</p>
               </div>
             </div>
+
+            {/* Vault Wallet */}
+            <VaultWallet />
+
+            {/* Copy Trading */}
+            <CopyTrading />
 
             {/* Safe Wallet Status */}
             {checkingSafe ? (

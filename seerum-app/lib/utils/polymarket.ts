@@ -1,7 +1,8 @@
 import { ClobClient } from "@polymarket/clob-client";
 import { BuilderConfig } from "@polymarket/builder-signing-sdk";
 import { ethers } from "ethers";
-import { Side, SignatureType, OrderType } from "@polymarket/clob-client";
+import { Side, OrderType } from "@polymarket/clob-client";
+import { SignatureType } from "@polymarket/order-utils";
 
 const CLOB_HOST = "https://clob.polymarket.com";
 const CHAIN_ID = 137; // Polygon mainnet

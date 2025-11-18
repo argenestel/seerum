@@ -36,6 +36,9 @@ Create a `.env.local` file in the `seerum-app` directory:
 # Builder Signing Server (your server running on port 3001)
 NEXT_PUBLIC_BUILDER_SIGNING_SERVER_URL=http://localhost:3001
 
+# Polymarket Listener Server (for copy trading, running on port 3002)
+NEXT_PUBLIC_LISTENER_SERVER_URL=http://localhost:3002
+
 # Polygon RPC
 NEXT_PUBLIC_POLYGON_RPC_URL=https://polygon-rpc.com
 
@@ -50,11 +53,41 @@ RELAYER_WALLET_PRIVATE_KEY=your-relayer-wallet-key
 
 # WalletConnect Project ID (get from https://cloud.walletconnect.com)
 NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your-project-id
+
+# Supabase Connection (for vault wallet storage)
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your-supabase-service-role-key
+# Or use anon key for client-side (less secure)
+# NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
 ```
 
 3. Update WalletConnect Project ID in `app/providers.tsx`:
 ```typescript
 projectId: "YOUR_PROJECT_ID", // Replace with your WalletConnect project ID
+```
+
+### Running the Polymarket Listener Server
+
+The listener server monitors traders and executes copy trades. It must be running for copy trading to work.
+
+1. Navigate to the listener server directory:
+```bash
+cd ../polymarket-listener-server
+```
+
+2. Set up environment variables in `.env`:
+```env
+MONGO_DB_URI=mongodb://localhost:27017/polymarket_listener
+PORT=3002
+BUILDER_SIGNING_SERVER_URL=http://localhost:3001
+POLL_INTERVAL=30000
+```
+
+3. Start the server:
+```bash
+npm run dev
+# or
+bun run dev
 ```
 
 ### Running the Builder Signing Server

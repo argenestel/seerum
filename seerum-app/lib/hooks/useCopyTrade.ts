@@ -1,79 +1,129 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
-import { createPolymarketClient, executeCopyTrade, CopyTradeParams } from "@/lib/utils/polymarket";
-import { Side } from "@polymarket/clob-client";
+import { Address } from "viem";
 
-interface UseCopyTradeOptions {
-  onSuccess?: () => void;
-  onError?: (error: Error) => void;
+export interface CopySubscription {
+  _id?: string;
+  address: string; // Subscriber's address
+  traderAddress: string; // Trader's address being copied
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
-export function useCopyTrade(options: UseCopyTradeOptions = {}) {
-  const { address, connector } = useAccount();
-  const { onSuccess, onError } = options;
+/**
+ * Hook to subscribe to copy trades from a trader
+ */
+export function useSubscribeToTrader() {
+  const { address } = useAccount();
+  const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (params: CopyTradeParams) => {
-      if (!address || !connector) {
+    mutationFn: async (traderAddress: Address) => {
+      if (!address) {
         throw new Error("Wallet not connected");
       }
 
-      // Get the private key from the wallet
-      // Note: This requires the user to sign a message or use a wallet adapter
-      // For production, you'll need to implement proper wallet integration
-      const provider = await connector.getProvider();
-      
-      // Create Polymarket client
-      // Note: You'll need to get the private key securely from the user's wallet
-      // This is a placeholder - implement proper wallet integration
-      const privateKey = ""; // Get from wallet securely
-      const proxyAddress = ""; // Get user's Polymarket proxy address
-
-      if (!privateKey) {
-        throw new Error("Private key not available");
-      }
-
-      const client = await createPolymarketClient({
-        privateKey,
-        proxyAddress,
+      const response = await fetch("/api/copy-trade/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subscriberAddress: address,
+          traderAddress,
+        }),
       });
 
-      return executeCopyTrade(client, params);
-    },
-    onSuccess,
-    onError,
-  });
-}
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to subscribe");
+      }
 
-// Helper hook to copy a specific trade
-export function useCopyTraderTrade() {
-  const copyTrade = useCopyTrade({
+      return response.json();
+    },
     onSuccess: () => {
-      console.log("Trade copied successfully");
-    },
-    onError: (error) => {
-      console.error("Failed to copy trade:", error);
+      // Invalidate subscriptions query
+      queryClient.invalidateQueries({ queryKey: ["copySubscriptions"] });
     },
   });
-
-  const copyTradeFromTrader = async (
-    tokenId: string,
-    side: "BUY" | "SELL",
-    size: number,
-    price: number
-  ) => {
-    return copyTrade.mutateAsync({
-      tokenId,
-      side: side === "BUY" ? Side.BUY : Side.SELL,
-      size,
-      price,
-    });
-  };
-
-  return {
-    copyTrade: copyTradeFromTrader,
-    isLoading: copyTrade.isPending,
-    error: copyTrade.error,
-  };
 }
 
+/**
+ * Hook to unsubscribe from copying a trader
+ */
+export function useUnsubscribeFromTrader() {
+  const { address } = useAccount();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (traderAddress: Address) => {
+      if (!address) {
+        throw new Error("Wallet not connected");
+      }
+
+      const response = await fetch("/api/copy-trade/subscribe", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subscriberAddress: address,
+          traderAddress,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to unsubscribe");
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      // Invalidate subscriptions query
+      queryClient.invalidateQueries({ queryKey: ["copySubscriptions"] });
+    },
+  });
+}
+
+/**
+ * Hook to get user's copy trading subscriptions
+ */
+export function useCopySubscriptions() {
+  const { address } = useAccount();
+
+  return useQuery<{ subscriptions: CopySubscription[]; count: number }>({
+    queryKey: ["copySubscriptions", address],
+    queryFn: async () => {
+      if (!address) {
+        return { subscriptions: [], count: 0 };
+      }
+
+      const response = await fetch(
+        `/api/copy-trade/subscribe?userAddress=${address}`
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch subscriptions");
+      }
+
+      return response.json();
+    },
+    enabled: !!address,
+    refetchInterval: 30000, // Refetch every 30 seconds
+  });
+}
+
+/**
+ * Hook to check if user is subscribed to a specific trader
+ */
+export function useIsSubscribedToTrader(traderAddress: Address | undefined) {
+  const { data: subscriptions } = useCopySubscriptions();
+
+  if (!traderAddress || !subscriptions) {
+    return false;
+  }
+
+  return subscriptions.subscriptions.some(
+    (sub) =>
+      sub.traderAddress.toLowerCase() === traderAddress.toLowerCase() &&
+      sub.active
+  );
+}

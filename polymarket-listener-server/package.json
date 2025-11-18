@@ -1,0 +1,35 @@
+{
+  "name": "polymarket-listener-server",
+  "version": "1.0.0",
+  "description": "Server to listen for Polymarket user events",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "setup-supabase": "tsx scripts/setup-supabase.ts",
+    "verify-supabase": "tsx scripts/verify-supabase.ts"
+  },
+  "keywords": ["polymarket", "events", "listener"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@polymarket/clob-client": "latest",
+    "@polymarket/order-utils": "latest",
+    "@ethersproject/wallet": "latest",
+    "axios": "^1.7.0",
+    "@supabase/supabase-js": "^2.39.0",
+    "dotenv": "^16.4.0",
+    "ethers": "^5.7.2",
+    "express": "^4.18.2",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.0.0",
+    "@types/ws": "^8.5.10",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0"
+  }
+}
+

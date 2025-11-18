@@ -1,8 +1,10 @@
 "use client";
 
-import { TrendingUp, TrendingDown, Copy, ExternalLink } from "lucide-react";
+import { TrendingUp, TrendingDown, Copy, ExternalLink, CheckCircle2, Loader2 } from "lucide-react";
 import { LeaderboardEntry } from "@/lib/types/polymarket";
 import Link from "next/link";
+import { useIsSubscribedToTrader, useSubscribeToTrader, useUnsubscribeFromTrader } from "@/lib/hooks/useCopyTrade";
+import { Address } from "viem";
 
 interface TraderCardProps {
   trader: LeaderboardEntry;
@@ -11,10 +13,39 @@ interface TraderCardProps {
 }
 
 export function TraderCard({ trader, rank, onCopyTrade }: TraderCardProps) {
+  // Get the address (proxyWallet or user)
+  const address = trader.proxyWallet || trader.user || "";
+  const traderAddress = address as Address;
+  
+  const isSubscribed = useIsSubscribedToTrader(traderAddress);
+  const subscribe = useSubscribeToTrader();
+  const unsubscribe = useUnsubscribeFromTrader();
   
   const formatAddress = (address: string) => {
     if (!address) return "Unknown";
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  };
+  
+  const handleSubscribe = async () => {
+    if (!traderAddress) return;
+    try {
+      await subscribe.mutateAsync(traderAddress);
+    } catch (error) {
+      console.error("Subscribe error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to subscribe";
+      alert(`Failed to subscribe: ${errorMessage}\n\nPlease ensure:\n1. The listener server is running on port 3002\n2. NEXT_PUBLIC_LISTENER_SERVER_URL is set in .env.local`);
+    }
+  };
+  
+  const handleUnsubscribe = async () => {
+    if (!traderAddress) return;
+    try {
+      await unsubscribe.mutateAsync(traderAddress);
+    } catch (error) {
+      console.error("Unsubscribe error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to unsubscribe";
+      alert(`Failed to unsubscribe: ${errorMessage}`);
+    }
   };
   
   // Handle both number and string types
@@ -32,8 +63,6 @@ export function TraderCard({ trader, rank, onCopyTrade }: TraderCardProps) {
     ? (typeof trader.winRate === 'number' ? trader.winRate : parseFloat(trader.winRate?.toString() || "0"))
     : 0;
 
-  // Get the address (proxyWallet or user)
-  const address = trader.proxyWallet || trader.user || "";
   const displayName = trader.userName || formatAddress(address);
 
   const formatCurrency = (value: number | string) => {
@@ -149,13 +178,43 @@ export function TraderCard({ trader, rank, onCopyTrade }: TraderCardProps) {
           >
             View Details
           </Link>
-          <button
-            onClick={() => onCopyTrade?.(address)}
-            className="flex-1 rounded-lg bg-primary text-primary-foreground px-4 py-2.5 text-sm font-medium hover:bg-primary/90 transition-all flex items-center justify-center gap-2"
-          >
-            <Copy className="h-4 w-4" />
-            Copy Trade
-          </button>
+          {isSubscribed ? (
+            <button
+              onClick={handleUnsubscribe}
+              disabled={unsubscribe.isPending}
+              className="flex-1 rounded-lg bg-green-500/20 text-green-500 border border-green-500/30 px-4 py-2.5 text-sm font-medium hover:bg-green-500/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {unsubscribe.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Stopping...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-4 w-4" />
+                  Copying
+                </>
+              )}
+            </button>
+          ) : (
+            <button
+              onClick={handleSubscribe}
+              disabled={subscribe.isPending || !traderAddress}
+              className="flex-1 rounded-lg bg-primary text-primary-foreground px-4 py-2.5 text-sm font-medium hover:bg-primary/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {subscribe.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Starting...
+                </>
+              ) : (
+                <>
+                  <Copy className="h-4 w-4" />
+                  Copy Trade
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </>

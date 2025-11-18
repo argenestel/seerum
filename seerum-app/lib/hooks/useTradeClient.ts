@@ -1,6 +1,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { useAccount, useWalletClient, usePublicClient } from "wagmi";
-import { ClobClient, Side, SignatureType } from "@polymarket/clob-client";
+import { ClobClient, Side } from "@polymarket/clob-client";
+import { SignatureType } from "@polymarket/order-utils";
 import { BuilderConfig } from "@polymarket/builder-signing-sdk";
 import { Address } from "viem";
 import { ClobWalletAdapter } from "@/lib/utils/clob-wallet-adapter";

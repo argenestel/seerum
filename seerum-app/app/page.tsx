@@ -93,23 +93,7 @@ export default function Home() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              {isConnected && (
-                <Link
-                  href="/demo"
-                  className="flex items-center gap-2 px-6 py-3 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-all whitespace-nowrap"
-                >
-                  Try Demo Trading
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              )}
-              {!isConnected && (
-                <button className="flex items-center gap-2 px-6 py-3 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-all whitespace-nowrap">
-                  Connect Wallet
-                  <ArrowRight className="h-4 w-4" />
-                </button>
-              )}
-            </div>
+    
           </div>
         </div>
 
