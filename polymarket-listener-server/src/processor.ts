@@ -3,6 +3,7 @@ import { EventEmitter } from "events";
 import { TradeData, PositionData } from "./listener";
 import { Database, CopySubscriber } from "./database";
 import { Interface } from "ethers/lib/utils";
+import { getProxyAgent } from "./proxy";
 
 export interface ProcessorConfig {
   builderSigningServerUrl: string;
@@ -173,6 +174,15 @@ export class EventProcessor extends EventEmitter {
       const { SignatureType } = await import("@polymarket/order-utils");
       const { ethers } = await import("ethers");
       const { Wallet } = await import("@ethersproject/wallet");
+
+      // Configure axios defaults with proxy for ClobClient (which uses axios internally)
+      const proxyAgent = getProxyAgent();
+      if (proxyAgent) {
+        console.log(`   🔒 Configuring ClobClient to use proxy...`);
+        // Set global axios defaults to use proxy agent
+        axios.defaults.httpsAgent = proxyAgent;
+        axios.defaults.httpAgent = proxyAgent;
+      }
 
       const CLOB_HOST = "https://clob.polymarket.com";
       const CHAIN_ID = 137; // Polygon mainnet

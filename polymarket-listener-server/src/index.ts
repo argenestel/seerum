@@ -3,6 +3,7 @@ import { PolymarketEventListener } from "./listener";
 import { EventProcessor } from "./processor";
 import { Database } from "./database";
 import { createApiServer } from "./api";
+import { getProxyConfig } from "./proxy";
 
 dotenv.config();
 
@@ -22,6 +23,14 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 async function main() {
   console.log("🚀 Starting Polymarket Event Listener Server...");
   console.log(`📡 Server will run on port ${PORT}`);
+  
+  // Check proxy configuration
+  const proxyConfig = getProxyConfig();
+  if (proxyConfig) {
+    console.log(`🔒 Proxy configured: ${proxyConfig.protocol}://${proxyConfig.host}:${proxyConfig.port}`);
+  } else {
+    console.log("ℹ️  No proxy configured. Using direct connection to Polymarket APIs.");
+  }
 
   const database = new Database();
   try {

@@ -38,6 +38,17 @@ PORT=3002
 BUILDER_SIGNING_SERVER_URL=http://localhost:3001
 MONITOR_USERS=0x123...,0x456...  # Comma-separated user addresses to monitor (optional, can be added via API)
 POLL_INTERVAL=30000  # Poll every 30 seconds
+
+# OPTIONAL: Proxy configuration (to bypass Cloudflare)
+# Option 1: Use individual components
+PROXY_HOST=117.2.28.235
+PROXY_PORT=55443
+PROXY_PROTOCOL=https
+PROXY_USERNAME=your-username  # Optional
+PROXY_PASSWORD=your-password  # Optional
+
+# Option 2: Use full URL format
+PROXY_URL=https://username:password@117.2.28.235:55443
 ```
 
 4. Create database tables in Supabase:
@@ -72,6 +83,12 @@ npm start
 - `BUILDER_SIGNING_SERVER_URL`: URL of your builder signing server (default: http://localhost:3001)
 - `DATA_API_BASE`: Polymarket Data API base URL
 - `GAMMA_API_BASE`: Polymarket Gamma API base URL
+- `PROXY_HOST`: Proxy server hostname/IP (optional, for bypassing Cloudflare)
+- `PROXY_PORT`: Proxy server port (optional)
+- `PROXY_PROTOCOL`: Proxy protocol - `http` or `https` (default: `https`)
+- `PROXY_USERNAME`: Proxy authentication username (optional)
+- `PROXY_PASSWORD`: Proxy authentication password (optional)
+- `PROXY_URL`: Alternative to above - full proxy URL format: `https://user:pass@host:port` (optional)
 
 ## Architecture
 

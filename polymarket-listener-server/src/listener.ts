@@ -1,5 +1,5 @@
-import axios from "axios";
 import { EventEmitter } from "events";
+import { createProxiedAxiosInstance } from "./proxy";
 
 export interface TradeData {
   id: string;
@@ -38,10 +38,13 @@ export class PolymarketEventListener extends EventEmitter {
   private monitoredUsers: Set<string> = new Set();
   private lastTradeTimestamps: Map<string, number> = new Map();
   private isRunning = false;
+  private axiosInstance: ReturnType<typeof createProxiedAxiosInstance>;
 
   constructor(config: ListenerConfig) {
     super();
     this.config = config;
+    // Create proxied axios instance for all API calls
+    this.axiosInstance = createProxiedAxiosInstance();
   }
 
   /**
@@ -140,7 +143,7 @@ export class PolymarketEventListener extends EventEmitter {
    */
   private async fetchUserTrades(userAddress: string, limit = 25): Promise<any[]> {
     try {
-      const response = await axios.get(`${this.config.dataApiBase}/activity`, {
+      const response = await this.axiosInstance.get(`${this.config.dataApiBase}/activity`, {
         params: {
           user: userAddress,
           limit,
@@ -175,7 +178,7 @@ export class PolymarketEventListener extends EventEmitter {
    */
   private async fetchUserPositions(userAddress: string, limit = 50): Promise<any[]> {
     try {
-      const response = await axios.get(`${this.config.dataApiBase}/positions`, {
+      const response = await this.axiosInstance.get(`${this.config.dataApiBase}/positions`, {
         params: {
           user: userAddress,
           limit,
