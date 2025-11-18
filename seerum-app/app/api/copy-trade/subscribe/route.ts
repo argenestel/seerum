@@ -5,13 +5,23 @@ const LISTENER_SERVER_URL =
 
 // Health check function
 async function checkListenerServer(): Promise<boolean> {
+  const healthUrl = `${LISTENER_SERVER_URL}/health`;
+  console.log(`[Health Check] Checking listener server at: ${healthUrl}`);
+  
   try {
-    const response = await fetch(`${LISTENER_SERVER_URL}/health`, {
+    const response = await fetch(healthUrl, {
       method: "GET",
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(15000), // Increased to 15 seconds for Render cold starts
     });
-    return response.ok;
-  } catch {
+    const isOk = response.ok;
+    console.log(`[Health Check] Response status: ${response.status}, OK: ${isOk}`);
+    return isOk;
+  } catch (error) {
+    console.error(`[Health Check] Failed to reach listener server:`, {
+      url: healthUrl,
+      error: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : 'Unknown',
+    });
     return false;
   }
 }
@@ -32,6 +42,8 @@ export async function OPTIONS() {
  */
 export async function POST(request: NextRequest) {
   try {
+    console.log(`[Subscribe] Using listener server URL: ${LISTENER_SERVER_URL}`);
+    
     // Check if listener server is reachable
     const isServerReachable = await checkListenerServer();
     if (!isServerReachable) {
@@ -39,7 +51,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: "Listener server not available",
-          message: `Cannot connect to listener server at ${LISTENER_SERVER_URL}. Please ensure the listener server is running on port 3002. Check your .env.local file for NEXT_PUBLIC_LISTENER_SERVER_URL.`,
+          message: `Cannot connect to listener server at ${LISTENER_SERVER_URL}. Please ensure the listener server is running. Check your environment variables: NEXT_PUBLIC_LISTENER_SERVER_URL or LISTENER_SERVER_URL.`,
         },
         { status: 503 }
       );
