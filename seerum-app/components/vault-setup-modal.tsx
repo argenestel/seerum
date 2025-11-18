@@ -34,9 +34,20 @@ export function VaultSetupModal({ isOpen, onClose }: VaultSetupModalProps) {
   const deploySafe = useDeploySafeFromVault();
   const depositUSDC = useDepositUSDC();
   
-  const [step, setStep] = useState<"vault" | "safe" | "deposit">("vault");
   const [depositAmount, setDepositAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [step, setStep] = useState<"vault" | "safe" | "deposit">("vault");
+
+  // Determine and set initial step based on current state
+  useEffect(() => {
+    if (!vaultInfo?.vaultAddress) {
+      setStep("vault");
+    } else if (vaultInfo.vaultAddress && safeInfo && !safeInfo.isDeployed) {
+      setStep("safe");
+    } else if (safeInfo?.isDeployed) {
+      setStep("deposit");
+    }
+  }, [vaultInfo?.vaultAddress, safeInfo?.isDeployed]);
 
   // Auto-advance steps based on state
   useEffect(() => {
@@ -46,10 +57,10 @@ export function VaultSetupModal({ isOpen, onClose }: VaultSetupModalProps) {
   }, [vaultInfo?.vaultAddress, step]);
 
   useEffect(() => {
-    if (safeInfo?.safeAddress && safeInfo?.isDeployed && step === "safe") {
+    if (safeInfo?.isDeployed && step === "safe") {
       setStep("deposit");
     }
-  }, [safeInfo?.safeAddress, safeInfo?.isDeployed, step]);
+  }, [safeInfo?.isDeployed, step]);
 
   const handleCreateVault = async () => {
     try {
@@ -209,19 +220,21 @@ export function VaultSetupModal({ isOpen, onClose }: VaultSetupModalProps) {
               <div>
                 <h3 className="font-medium mb-1">Deploy Safe Wallet</h3>
                 <p className="text-sm text-muted-foreground">
-                  Deploy a Safe wallet for secure trading on Polymarket
+                  Deploy a Safe wallet for secure trading on Polymarket. This is a one-time gasless transaction.
                 </p>
               </div>
             </div>
-            {safeInfo?.isDeployed && safeInfo?.safeAddress ? (
+            {safeInfo?.isDeployed ? (
               <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
                 <div className="flex items-center gap-2 text-green-600 dark:text-green-400 mb-2">
                   <CheckCircle2 className="h-5 w-5" />
                   <span className="font-medium">Safe Deployed</span>
                 </div>
-                <p className="text-sm text-muted-foreground font-mono">
-                  {formatAddress(safeInfo.safeAddress)}
-                </p>
+                {safeInfo.safeAddress && (
+                  <p className="text-sm text-muted-foreground font-mono">
+                    {formatAddress(safeInfo.safeAddress)}
+                  </p>
+                )}
               </div>
             ) : (
               <button
@@ -237,7 +250,7 @@ export function VaultSetupModal({ isOpen, onClose }: VaultSetupModalProps) {
                 ) : (
                   <>
                     <Shield className="h-5 w-5" />
-                    Deploy Safe Wallet
+                    Deploy Safe Wallet (Gasless)
                   </>
                 )}
               </button>
@@ -246,14 +259,14 @@ export function VaultSetupModal({ isOpen, onClose }: VaultSetupModalProps) {
         )}
 
         {/* Step 3: Deposit */}
-        {step === "deposit" && safeInfo?.safeAddress && (
+        {step === "deposit" && safeInfo?.isDeployed && safeInfo?.safeAddress && (
           <div className="space-y-4">
             <div className="flex items-center gap-3 p-4 bg-muted/50 rounded-lg">
               <DollarSign className="h-8 w-8 text-primary" />
               <div>
                 <h3 className="font-medium mb-1">Deposit USDC</h3>
                 <p className="text-sm text-muted-foreground">
-                  Deposit USDC to your Safe wallet to start trading
+                  Transfer USDC from your connected wallet to your Safe wallet to start trading.
                 </p>
               </div>
             </div>
@@ -270,6 +283,9 @@ export function VaultSetupModal({ isOpen, onClose }: VaultSetupModalProps) {
                 placeholder="0.00"
                 className="w-full rounded-lg bg-background border border-border px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                Make sure you have USDC in your connected wallet
+              </p>
             </div>
             <button
               onClick={handleDeposit}
@@ -288,6 +304,9 @@ export function VaultSetupModal({ isOpen, onClose }: VaultSetupModalProps) {
                 </>
               )}
             </button>
+            <p className="text-xs text-center text-muted-foreground">
+              After depositing, you can start copy trading!
+            </p>
           </div>
         )}
       </div>

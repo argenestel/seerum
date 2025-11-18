@@ -7,8 +7,10 @@ import {
   useVault, 
   useSafeAddress, 
   useDeploySafeFromVault,
-  usePolymarketInfo 
+  usePolymarketInfo,
+  useGetVaultPrivateKey
 } from "@/lib/hooks/useVault";
+import { useDepositUSDC } from "@/lib/hooks/useSafeWallet";
 import { formatAddress } from "@/lib/utils";
 import {
   Wallet,
@@ -20,6 +22,10 @@ import {
   Copy,
   Shield,
   ExternalLink,
+  DollarSign,
+  Download,
+  Info,
+  X,
 } from "lucide-react";
 import { useCopySubscriptions } from "@/lib/hooks/useCopyTrade";
 
@@ -29,12 +35,19 @@ export function VaultWallet() {
   const { data: vaultInfo, refetch: refetchVault } = useVault();
   const { data: safeInfo, refetch: refetchSafe } = useSafeAddress(vaultInfo?.vaultAddress);
   const deploySafe = useDeploySafeFromVault();
+  const depositUSDC = useDepositUSDC();
   const { data: polymarketInfo, refetch: refetchPolymarket } = usePolymarketInfo(
     safeInfo?.safeAddress
   );
   const { data: subscriptions } = useCopySubscriptions();
   
   const [error, setError] = useState<string | null>(null);
+  const [depositAmount, setDepositAmount] = useState("");
+  const [showDeposit, setShowDeposit] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [privateKey, setPrivateKey] = useState<string | null>(null);
+  const [privateKeyCopied, setPrivateKeyCopied] = useState(false);
+  const getPrivateKey = useGetVaultPrivateKey();
 
   useEffect(() => {
     if (createVault.isSuccess) {
@@ -74,6 +87,47 @@ export function VaultWallet() {
       await refetchPolymarket();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to deploy Safe");
+    }
+  };
+
+  const handleDepositUSDC = async () => {
+    if (!safeInfo?.safeAddress || !depositAmount) {
+      setError("Please enter deposit amount");
+      return;
+    }
+
+    try {
+      setError(null);
+      await depositUSDC.mutateAsync({
+        safeAddress: safeInfo.safeAddress as `0x${string}`,
+        amount: depositAmount,
+      });
+      setDepositAmount("");
+      setShowDeposit(false);
+      await refetchPolymarket();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to deposit USDC");
+    }
+  };
+
+  const handleImportToMetaMask = async () => {
+    if (!vaultInfo?.id) return;
+
+    try {
+      setError(null);
+      const result = await getPrivateKey.mutateAsync(vaultInfo.id);
+      setPrivateKey(result.privateKey);
+      setShowImportModal(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to get private key");
+    }
+  };
+
+  const copyPrivateKey = () => {
+    if (privateKey) {
+      navigator.clipboard.writeText(privateKey);
+      setPrivateKeyCopied(true);
+      setTimeout(() => setPrivateKeyCopied(false), 2000);
     }
   };
 
@@ -145,12 +199,13 @@ export function VaultWallet() {
         </div>
       ) : (
         <div className="space-y-4">
+          {/* Vault Status */}
           <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
             <div className="flex items-center gap-2 mb-2">
               <CheckCircle2 className="h-5 w-5 text-green-500" />
               <span className="font-medium text-green-500">Vault Created</span>
             </div>
-            <div className="space-y-2 text-sm">
+            <div className="text-sm">
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Vault Address:</span>
                 <div className="flex items-center gap-2">
@@ -163,12 +218,19 @@ export function VaultWallet() {
                   </button>
                 </div>
               </div>
-              {safeInfo && (
-                <div className="flex items-center justify-between pt-2 border-t border-border/50">
-                  <span className="text-muted-foreground flex items-center gap-1">
-                    <Shield className="h-3 w-3" />
-                    Safe Address:
-                  </span>
+            </div>
+          </div>
+
+          {/* Safe Status - Only show if deployed */}
+          {safeInfo?.isDeployed && safeInfo?.safeAddress && (
+            <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
+              <div className="flex items-center gap-2 mb-3">
+                <Shield className="h-5 w-5 text-blue-500" />
+                <span className="font-medium text-blue-500">Safe Wallet Deployed</span>
+              </div>
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Safe Address:</span>
                   <div className="flex items-center gap-2">
                     <span className="font-mono">{formatAddress(safeInfo.safeAddress)}</span>
                     <button
@@ -179,77 +241,161 @@ export function VaultWallet() {
                     </button>
                   </div>
                 </div>
-              )}
-              {safeInfo && (
-                <div className="flex items-center justify-between pt-2">
-                  <span className="text-muted-foreground">Status:</span>
-                  <span className={`text-xs px-2 py-1 rounded ${
-                    safeInfo.isDeployed 
-                      ? "bg-green-500/20 text-green-500" 
-                      : "bg-yellow-500/20 text-yellow-500"
-                  }`}>
-                    {safeInfo.isDeployed ? "Deployed" : "Not Deployed"}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Polymarket Info Section */}
-          {safeInfo && polymarketInfo && (
-            <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
-              <div className="flex items-center gap-2 mb-3">
-                <Wallet className="h-4 w-4 text-blue-500" />
-                <span className="font-medium text-blue-500">Polymarket Info</span>
-              </div>
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">On-Chain Balance:</span>
-                  <span className="font-mono">${parseFloat(polymarketInfo.onChainBalance).toFixed(2)} USDC</span>
-                </div>
-                {polymarketInfo.polymarketBalance !== null && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Polymarket Balance:</span>
-                    <span className="font-mono">${polymarketInfo.polymarketBalance} USDC</span>
-                  </div>
+                {polymarketInfo && (
+                  <>
+                    <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                      <span className="text-muted-foreground">USDC Balance:</span>
+                      <span className="font-mono">${parseFloat(polymarketInfo.onChainBalance || "0").toFixed(2)}</span>
+                    </div>
+                    {polymarketInfo.polymarketBalance !== null && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Polymarket Balance:</span>
+                        <span className="font-mono">${polymarketInfo.polymarketBalance}</span>
+                      </div>
+                    )}
+                  </>
                 )}
-                <div className="flex items-center justify-between pt-2 border-t border-border/50">
-                  <span className="text-muted-foreground">Deposit Address:</span>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs">{formatAddress(polymarketInfo.depositAddress)}</span>
-                    <a
-                      href={`https://polygonscan.com/address/${polymarketInfo.depositAddress}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-1 hover:bg-white/10 rounded"
-                    >
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  </div>
-                </div>
               </div>
             </div>
           )}
 
-          {/* Deploy Safe Button */}
-          {safeInfo && !safeInfo.isDeployed && (
-            <button
-              onClick={handleDeploySafe}
-              disabled={deploySafe.isPending}
-              className="w-full px-4 py-3 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {deploySafe.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Deploying Safe...
-                </>
-              ) : (
-                <>
-                  <Shield className="h-4 w-4" />
-                  Deploy Safe Wallet (Gasless)
-                </>
+          {/* Deploy Safe Button - Only show if Safe address exists but not deployed */}
+          {safeInfo?.safeAddress && !safeInfo.isDeployed && (
+            <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+              <div className="flex items-center gap-2 mb-3">
+                <AlertCircle className="h-5 w-5 text-yellow-500" />
+                <span className="font-medium text-yellow-500">Safe Wallet Not Deployed</span>
+              </div>
+              <p className="text-sm text-muted-foreground mb-3">
+                Deploy your Safe wallet to start copy trading. This is a one-time gasless transaction.
+              </p>
+              <button
+                onClick={handleDeploySafe}
+                disabled={deploySafe.isPending}
+                className="w-full px-4 py-3 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {deploySafe.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Deploying Safe...
+                  </>
+                ) : (
+                  <>
+                    <Shield className="h-4 w-4" />
+                    Deploy Safe Wallet (Gasless)
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* Deposit USDC Section - Only show after Safe is deployed */}
+          {safeInfo?.isDeployed && safeInfo?.safeAddress && (
+            <>
+              <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
+                <div className="flex items-center gap-2 mb-3">
+                  <DollarSign className="h-5 w-5 text-green-500" />
+                  <span className="font-medium text-green-500">Deposit USDC</span>
+                </div>
+                
+                {!showDeposit ? (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      Transfer USDC from your connected wallet to your Safe wallet to start trading.
+                    </p>
+                    <button
+                      onClick={() => setShowDeposit(true)}
+                      className="w-full px-4 py-3 rounded-lg bg-green-600 text-white font-medium hover:bg-green-700 transition-all flex items-center justify-center gap-2"
+                    >
+                      <DollarSign className="h-4 w-4" />
+                      Deposit USDC
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Amount (USDC)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.000001"
+                        min="0"
+                        value={depositAmount}
+                        onChange={(e) => setDepositAmount(e.target.value)}
+                        placeholder="0.00"
+                        className="w-full rounded-lg bg-background border border-border px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          setShowDeposit(false);
+                          setDepositAmount("");
+                        }}
+                        className="flex-1 px-4 py-2 rounded-lg border border-border hover:bg-muted transition-all"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleDepositUSDC}
+                        disabled={depositUSDC.isPending || !depositAmount}
+                        className="flex-1 px-4 py-3 rounded-lg bg-green-600 text-white font-medium hover:bg-green-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        {depositUSDC.isPending ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Depositing...
+                          </>
+                        ) : (
+                          <>
+                            <DollarSign className="h-4 w-4" />
+                            Deposit
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Import to MetaMask Section - Show after Safe is deployed */}
+              {safeInfo?.isDeployed && safeInfo?.safeAddress && (
+                <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Wallet className="h-5 w-5 text-blue-500" />
+                    <span className="font-medium text-blue-500">Sign in to Polymarket</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Import your vault wallet into MetaMask to sign in to Polymarket with your Safe wallet ({safeInfo.safeAddress ? formatAddress(safeInfo.safeAddress) : ""}).
+                  </p>
+                  {polymarketInfo && parseFloat(polymarketInfo.onChainBalance || "0") > 0 && (
+                    <div className="mb-3 p-2 rounded bg-green-500/10 border border-green-500/20">
+                      <p className="text-xs text-green-500">
+                        ✓ Deposit confirmed: ${parseFloat(polymarketInfo.onChainBalance || "0").toFixed(2)} USDC
+                      </p>
+                    </div>
+                  )}
+                  <button
+                    onClick={handleImportToMetaMask}
+                    disabled={getPrivateKey.isPending}
+                    className="w-full px-4 py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {getPrivateKey.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="h-4 w-4" />
+                        Import to MetaMask
+                      </>
+                    )}
+                  </button>
+                </div>
               )}
-            </button>
+            </>
           )}
 
           {subscriptions && subscriptions.subscriptions.length > 0 && (
@@ -260,6 +406,107 @@ export function VaultWallet() {
               </p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Import to MetaMask Modal */}
+      {showImportModal && privateKey && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-background border border-border rounded-lg p-6 max-w-md w-full">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <Wallet className="h-5 w-5" />
+                Import to MetaMask
+              </h3>
+              <button
+                onClick={() => {
+                  setShowImportModal(false);
+                  setPrivateKey(null);
+                }}
+                className="p-1 rounded-lg hover:bg-muted transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+                <div className="flex items-start gap-2">
+                  <Info className="h-5 w-5 text-yellow-500 mt-0.5" />
+                  <div className="flex-1 text-sm">
+                    <p className="font-medium mb-1">Important Security Notice</p>
+                    <p className="text-muted-foreground">
+                      Your private key will be shown below. Keep it secure and never share it with anyone.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Private Key
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={privateKey}
+                    className="flex-1 rounded-lg bg-background border border-border px-4 py-2 font-mono text-sm"
+                  />
+                  <button
+                    onClick={copyPrivateKey}
+                    className="px-4 py-2 rounded-lg border border-border hover:bg-muted transition-all flex items-center gap-2"
+                  >
+                    {privateKeyCopied ? (
+                      <>
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-4 w-4" />
+                        Copy
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                <p className="text-sm font-medium mb-2">How to import into MetaMask:</p>
+                <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
+                  <li>Open MetaMask extension</li>
+                  <li>Click the account icon (top right)</li>
+                  <li>Select "Import Account"</li>
+                  <li>Paste your private key</li>
+                  <li>Click "Import"</li>
+                  <li>Go to <a href="https://polymarket.com" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">polymarket.com</a> and connect with this wallet</li>
+                  <li>Your Safe address ({safeInfo?.safeAddress ? formatAddress(safeInfo.safeAddress) : "..."}) will be recognized as your proxy wallet</li>
+                </ol>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setShowImportModal(false);
+                    setPrivateKey(null);
+                  }}
+                  className="flex-1 px-4 py-2 rounded-lg border border-border hover:bg-muted transition-all"
+                >
+                  Close
+                </button>
+                <a
+                  href="https://polymarket.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 px-4 py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Go to Polymarket
+                </a>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

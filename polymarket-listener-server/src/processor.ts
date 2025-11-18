@@ -154,13 +154,12 @@ export class EventProcessor extends EventEmitter {
       const tempClient = new ClobClient(CLOB_HOST, CHAIN_ID, connectedWallet);
       const apiCreds = await (tempClient as any).createOrDeriveApiKey();
 
-      // Create CLOB client with Safe address (signature type 2 = POLY_PROXY)
       const client = new ClobClient(
         CLOB_HOST,
         CHAIN_ID,
         connectedWallet,
         apiCreds,
-        2, // SignatureType.POLY_PROXY
+        2, 
         safeAddress
       );
 
@@ -183,17 +182,68 @@ export class EventProcessor extends EventEmitter {
       
       // Minimum order value is $1
       const MIN_ORDER_VALUE = 1.0;
-      const finalOrderValue = Math.max(scaledOrderValue, MIN_ORDER_VALUE);
+      let desiredOrderValue = Math.max(scaledOrderValue, MIN_ORDER_VALUE);
       
       console.log(`   Original order value: $${originalOrderValue.toFixed(2)}`);
       console.log(`   Scaled order value (${percentage}%): $${scaledOrderValue.toFixed(2)}`);
-      console.log(`   Final order value (min $${MIN_ORDER_VALUE}): $${finalOrderValue.toFixed(2)}`);
+      console.log(`   Desired order value (min $${MIN_ORDER_VALUE}): $${desiredOrderValue.toFixed(2)}`);
+
+      // Check available balance and scale order accordingly
+      let availableBalance = 0;
+      try {
+        // Try to get balance using getBalanceAllowance
+        let balanceData;
+        try {
+          balanceData = await (client as any).getBalanceAllowance?.();
+        } catch (e1: any) {
+          try {
+            balanceData = await (client as any).getBalanceAllowance?.({ asset_type: "USDC" });
+          } catch (e2: any) {
+            try {
+              balanceData = await (client as any).getBalanceAllowance?.({ assetType: "USDC" });
+            } catch (e3: any) {
+              balanceData = await (client as any).getBalanceAllowance?.("USDC");
+            }
+          }
+        }
+        
+        if (balanceData) {
+          availableBalance = parseFloat(
+            balanceData.balance || 
+            balanceData.availableBalance || 
+            balanceData.available || 
+            "0"
+          );
+          console.log(`   Available balance: $${availableBalance.toFixed(2)}`);
+        }
+      } catch (balanceError: any) {
+        console.log(`   ⚠️  Could not check balance: ${balanceError.message}`);
+        console.log(`   💡 Proceeding with desired order value`);
+      }
+
+      // Scale order value to match available balance if insufficient
+      let finalOrderValue = desiredOrderValue;
+      if (availableBalance > 0 && availableBalance < desiredOrderValue) {
+        // Scale down to available balance, but ensure minimum $1
+        finalOrderValue = Math.max(availableBalance, MIN_ORDER_VALUE);
+        console.log(`   ⚠️  Insufficient balance! Scaling order down:`);
+        console.log(`      Desired: $${desiredOrderValue.toFixed(2)}`);
+        console.log(`      Available: $${availableBalance.toFixed(2)}`);
+        console.log(`      Final (scaled): $${finalOrderValue.toFixed(2)}`);
+        
+        if (finalOrderValue < MIN_ORDER_VALUE) {
+          console.error(`   ❌ Available balance ($${availableBalance.toFixed(2)}) is below minimum order value ($${MIN_ORDER_VALUE})`);
+          return false;
+        }
+      } else if (availableBalance === 0) {
+        console.log(`   ⚠️  No balance detected. Proceeding with order (may fail if insufficient)`);
+      }
 
       // Create market order (amount is in USD, not size)
       // Using type assertion as createMarketOrder may not be in types yet
       const order = await (client as any).createMarketOrder({
         tokenID: tokenId,
-        amount: finalOrderValue, // Amount in USD
+        amount: finalOrderValue, // Amount in USD (scaled to available balance)
         side: side,
       });
 

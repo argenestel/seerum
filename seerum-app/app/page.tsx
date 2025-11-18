@@ -9,21 +9,33 @@ import { useAccount } from "wagmi";
 import { User } from "lucide-react";
 import Link from "next/link";
 import { VaultSetupModal } from "@/components/vault-setup-modal";
-import { useVault } from "@/lib/hooks/useVault";
+import { useVault, useSafeAddress } from "@/lib/hooks/useVault";
 
 export default function Home() {
   const { theme, setTheme } = useTheme();
   const [tradeMode, setTradeMode] = useState<"copy" | "free">("copy");
   const { isConnected, address } = useAccount();
   const { data: vaultInfo, isLoading: loadingVault } = useVault();
+  const { data: safeInfo, isLoading: loadingSafe } = useSafeAddress(vaultInfo?.vaultAddress);
   const [showVaultModal, setShowVaultModal] = useState(false);
 
-  // Show modal when user connects and has no vault
+  // Show modal when:
+  // 1. User connects and has no vault, OR
+  // 2. Vault exists but Safe is not deployed
   useEffect(() => {
-    if (isConnected && address && !loadingVault && !vaultInfo?.vaultAddress) {
-      setShowVaultModal(true);
+    if (isConnected && address && !loadingVault && !loadingSafe) {
+      if (!vaultInfo) {
+        // No vault - show modal
+        setShowVaultModal(true);
+      } else if (vaultInfo && safeInfo && !safeInfo.isDeployed) {
+        // Vault exists but Safe not deployed - show modal
+        setShowVaultModal(true);
+      } else if (vaultInfo && safeInfo && safeInfo.isDeployed) {
+        // Everything is set up - close modal
+        setShowVaultModal(false);
+      }
     }
-  }, [isConnected, address, loadingVault, vaultInfo]);
+  }, [isConnected, address, loadingVault, loadingSafe, vaultInfo, safeInfo]);
 
   return (
     <div className="min-h-screen bg-background">

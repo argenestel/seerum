@@ -49,8 +49,8 @@ export default function ProfilePage() {
     address: statsAddress,
   });
   
-  // Show loading if we're waiting for vault info
-  const isLoadingVaultInfo = !vaultInfo && address;
+  // Show loading if we're waiting for vault info (but not if it's null because it doesn't exist)
+  const isLoadingVaultInfo = vaultInfo === undefined && address;
   const { data: safeStatus, isLoading: checkingSafe } = useSafeWalletStatus();
 
   // Prepare P&L chart data from API
@@ -326,45 +326,8 @@ export default function ProfilePage() {
 
             {/* Copy Trading */}
             <CopyTrading />
-
-            {/* Safe Wallet Status */}
-            {checkingSafe ? (
-              <div className="backdrop-blur-xl bg-white/5 dark:bg-black/5 border border-border rounded-xl p-4 mb-6">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  <span className="text-sm">Checking Safe wallet...</span>
-                </div>
-              </div>
-            ) : safeStatus?.exists && safeStatus?.isSafe ? (
-              <div className="backdrop-blur-xl bg-white/5 dark:bg-black/5 border border-border rounded-xl p-4 mb-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-5 w-5 text-green-500" />
-                    <span className="font-medium">Safe Wallet Connected</span>
-                  </div>
-                  <span className="text-sm text-muted-foreground font-mono">
-                    {formatAddress(safeStatus.address)}
-                  </span>
-                </div>
-              </div>
-            ) : (
-              <div className="backdrop-blur-xl bg-white/5 dark:bg-black/5 border border-border rounded-xl p-4 mb-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="h-5 w-5 text-amber-500" />
-                    <span className="font-medium">No Safe Wallet</span>
-                  </div>
-                  <a
-                    href="https://polymarket.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-primary hover:underline"
-                  >
-                    Create Account
-                  </a>
-                </div>
-              </div>
-            )}
+<br />
+  
 
             {/* Charts */}
             {pnlChartData.length > 0 || volumeChartData.length > 0 ? (

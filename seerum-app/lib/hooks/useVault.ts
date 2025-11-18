@@ -52,52 +52,41 @@ export function useCreateVault() {
 }
 
 /**
- * Hook to get vault info for the current user
+ * Hook to get vault info for the current user (does NOT auto-create)
  */
 export function useVault() {
   const { address } = useAccount();
 
-  return useQuery<VaultInfo>({
+  return useQuery<VaultInfo | null>({
     queryKey: ["vault", address],
     queryFn: async () => {
       if (!address) {
-        throw new Error("Wallet not connected");
+        return null;
       }
 
-      // First try to get vault by user address
-      const createResponse = await fetch("/api/vault/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userAddress: address }),
-      });
+      // Get vault by user address (does not create if not exists)
+      const response = await fetch(`/api/vault/get?userAddress=${address}`);
 
-      if (createResponse.status === 409) {
-        // Vault already exists, get the info from error response
-        const data = await createResponse.json();
-        return {
-          id: data.vaultId,
-          vaultAddress: data.vaultAddress,
-          userAddress: address,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
+      if (response.status === 404) {
+        // Vault doesn't exist - return null (don't auto-create)
+        return null;
       }
 
-      if (!createResponse.ok) {
+      if (!response.ok) {
         throw new Error("Failed to get vault");
       }
 
-      const vaultData = await createResponse.json();
+      const vaultData = await response.json();
       return {
-        id: vaultData.vaultId,
+        id: vaultData.id,
         vaultAddress: vaultData.vaultAddress,
-        safeAddress: vaultData.safeAddress,
         userAddress: address,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: vaultData.createdAt,
+        updatedAt: vaultData.updatedAt,
       };
     },
     enabled: !!address,
+    retry: false, // Don't retry on 404 (vault doesn't exist)
   });
 }
 
@@ -189,5 +178,36 @@ export function usePolymarketInfo(safeAddress?: string, vaultPrivateKey?: string
     },
     enabled: !!safeAddress,
     refetchInterval: 30000, // Refetch every 30 seconds
+  });
+}
+
+/**
+ * Hook to get vault private key for MetaMask import
+ */
+export function useGetVaultPrivateKey() {
+  const { address } = useAccount();
+
+  return useMutation({
+    mutationFn: async (vaultId: string) => {
+      if (!address) {
+        throw new Error("Wallet not connected");
+      }
+
+      const response = await fetch("/api/vault/decrypt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userAddress: address,
+          vaultId,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to get vault private key");
+      }
+
+      return response.json();
+    },
   });
 }
