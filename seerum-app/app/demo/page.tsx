@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useAccount } from "wagmi";
 import { useSafeWalletStatus, useDeploySafe } from "@/lib/hooks/useSafeWallet";
 import { useTradeClient } from "@/lib/hooks/useTradeClient";
+import { useVault } from "@/lib/hooks/useVault";
 import { formatAddress, formatCurrency } from "@/lib/utils";
 import {
   ArrowLeft,
@@ -34,6 +35,7 @@ export default function DemoTradingPage() {
   const { data: safeStatus, isLoading: checkingSafe, refetch: refetchSafe } = useSafeWalletStatus();
   const deploySafe = useDeploySafe();
   const tradeClient = useTradeClient();
+  const { data: vaultInfo } = useVault();
 
   const [step, setStep] = useState<"setup" | "trade">("setup");
   const [tradeSize, setTradeSize] = useState("");
@@ -211,13 +213,29 @@ export default function DemoTradingPage() {
     setIsPlacingOrder(true);
 
     try {
-      // Use client-side trading with wallet signing (production-ready)
+      // Get vault private key
+      if (!vaultInfo) {
+        throw new Error("No vault found. Please create a vault first.");
+      }
+
+      // Vault info is already available
+      // The vault private key is stored server-side and used for trading
+      // Get Safe address for the vault
+      const safeAddressResponse = await fetch(`/api/vault/safe-address?userAddress=${address}`);
+      if (!safeAddressResponse.ok) {
+        throw new Error("Failed to get Safe address");
+      }
+      const safeInfo = await safeAddressResponse.json();
+
+      // Use vault-based trading with Supabase private key
+      // Note: vaultPrivateKey is handled server-side via API
       const result = await tradeClient.mutateAsync({
         tokenId,
         side: "BUY",
         size: tradeSize,
         price: "0.5", // Demo: buy at 50 cents
-        safeAddress: safeStatus?.address,
+        safeAddress: safeInfo.safeAddress,
+        vaultPrivateKey: "", // Will be fetched server-side from vault
       });
 
       if (result.success) {

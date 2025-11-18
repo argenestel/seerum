@@ -2,7 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { useAccount } from "wagmi";
-import { useCreateVault, useDecryptVault, useVaultInfo } from "@/lib/hooks/useVault";
+import { 
+  useCreateVault, 
+  useVault, 
+  useSafeAddress, 
+  useDeploySafeFromVault,
+  usePolymarketInfo 
+} from "@/lib/hooks/useVault";
 import { formatAddress } from "@/lib/utils";
 import {
   Wallet,
@@ -12,19 +18,22 @@ import {
   Lock,
   Key,
   Copy,
+  Shield,
+  ExternalLink,
 } from "lucide-react";
 import { useCopySubscriptions } from "@/lib/hooks/useCopyTrade";
 
 export function VaultWallet() {
   const { address } = useAccount();
   const createVault = useCreateVault();
-  const decryptVault = useDecryptVault();
-  const { data: vaultData, refetch: refetchVault } = useVaultInfo();
+  const { data: vaultInfo, refetch: refetchVault } = useVault();
+  const { data: safeInfo, refetch: refetchSafe } = useSafeAddress(vaultInfo?.vaultAddress);
+  const deploySafe = useDeploySafeFromVault();
+  const { data: polymarketInfo, refetch: refetchPolymarket } = usePolymarketInfo(
+    safeInfo?.safeAddress
+  );
   const { data: subscriptions } = useCopySubscriptions();
   
-  const vaultInfo = vaultData?.vault || null;
-  const [showPrivateKey, setShowPrivateKey] = useState(false);
-  const [privateKey, setPrivateKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -32,6 +41,18 @@ export function VaultWallet() {
       refetchVault();
     }
   }, [createVault.isSuccess, refetchVault]);
+
+  useEffect(() => {
+    if (vaultInfo?.vaultAddress) {
+      refetchSafe();
+    }
+  }, [vaultInfo?.vaultAddress, refetchSafe]);
+
+  useEffect(() => {
+    if (safeInfo?.safeAddress) {
+      refetchPolymarket();
+    }
+  }, [safeInfo?.safeAddress, refetchPolymarket]);
 
   const handleCreateVault = async () => {
     try {
@@ -43,16 +64,16 @@ export function VaultWallet() {
     }
   };
 
-  const handleDecryptVault = async () => {
+  const handleDeploySafe = async () => {
     if (!vaultInfo) return;
 
     try {
       setError(null);
-      const result = await decryptVault.mutateAsync(vaultInfo.id);
-      setPrivateKey(result.privateKey);
-      setShowPrivateKey(true);
+      await deploySafe.mutateAsync(vaultInfo.id);
+      await refetchSafe();
+      await refetchPolymarket();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to decrypt vault");
+      setError(err instanceof Error ? err.message : "Failed to deploy Safe");
     }
   };
 
@@ -142,52 +163,100 @@ export function VaultWallet() {
                   </button>
                 </div>
               </div>
+              {safeInfo && (
+                <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                  <span className="text-muted-foreground flex items-center gap-1">
+                    <Shield className="h-3 w-3" />
+                    Safe Address:
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono">{formatAddress(safeInfo.safeAddress)}</span>
+                    <button
+                      onClick={() => copyToClipboard(safeInfo.safeAddress)}
+                      className="p-1 hover:bg-white/10 rounded"
+                    >
+                      <Copy className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+              )}
+              {safeInfo && (
+                <div className="flex items-center justify-between pt-2">
+                  <span className="text-muted-foreground">Status:</span>
+                  <span className={`text-xs px-2 py-1 rounded ${
+                    safeInfo.isDeployed 
+                      ? "bg-green-500/20 text-green-500" 
+                      : "bg-yellow-500/20 text-yellow-500"
+                  }`}>
+                    {safeInfo.isDeployed ? "Deployed" : "Not Deployed"}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
+
+          {/* Polymarket Info Section */}
+          {safeInfo && polymarketInfo && (
+            <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
+              <div className="flex items-center gap-2 mb-3">
+                <Wallet className="h-4 w-4 text-blue-500" />
+                <span className="font-medium text-blue-500">Polymarket Info</span>
+              </div>
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">On-Chain Balance:</span>
+                  <span className="font-mono">${parseFloat(polymarketInfo.onChainBalance).toFixed(2)} USDC</span>
+                </div>
+                {polymarketInfo.polymarketBalance !== null && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Polymarket Balance:</span>
+                    <span className="font-mono">${polymarketInfo.polymarketBalance} USDC</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                  <span className="text-muted-foreground">Deposit Address:</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs">{formatAddress(polymarketInfo.depositAddress)}</span>
+                    <a
+                      href={`https://polygonscan.com/address/${polymarketInfo.depositAddress}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1 hover:bg-white/10 rounded"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Deploy Safe Button */}
+          {safeInfo && !safeInfo.isDeployed && (
+            <button
+              onClick={handleDeploySafe}
+              disabled={deploySafe.isPending}
+              className="w-full px-4 py-3 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {deploySafe.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Deploying Safe...
+                </>
+              ) : (
+                <>
+                  <Shield className="h-4 w-4" />
+                  Deploy Safe Wallet (Gasless)
+                </>
+              )}
+            </button>
+          )}
 
           {subscriptions && subscriptions.subscriptions.length > 0 && (
             <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
               <p className="text-sm text-blue-500">
                 This vault will be used for copy trading. When traders you follow
                 make trades, they will be executed using this vault wallet.
-              </p>
-            </div>
-          )}
-
-          {!showPrivateKey ? (
-            <button
-              onClick={handleDecryptVault}
-              disabled={decryptVault.isPending}
-              className="w-full px-4 py-3 rounded-lg bg-muted text-foreground font-medium hover:bg-muted/80 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {decryptVault.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Accessing...
-                </>
-              ) : (
-                <>
-                  <Key className="h-4 w-4" />
-                  Show Private Key
-                </>
-              )}
-            </button>
-          ) : (
-            <div className="p-4 rounded-lg bg-muted/50 border border-border">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">Private Key:</span>
-                <button
-                  onClick={() => copyToClipboard(privateKey || "")}
-                  className="p-1 hover:bg-white/10 rounded"
-                >
-                  <Copy className="h-3 w-3" />
-                </button>
-              </div>
-              <div className="font-mono text-xs break-all bg-background/50 p-2 rounded">
-                {privateKey}
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                ⚠️ Keep this private key secure. Never share it with anyone.
               </p>
             </div>
           )}

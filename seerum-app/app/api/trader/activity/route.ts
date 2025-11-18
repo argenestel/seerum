@@ -98,10 +98,35 @@ export async function GET(request: NextRequest) {
 
     const data = await response.json();
 
-    // Normalize response format
+    // Normalize response format - handle both old and new formats
+    let trades = [];
+    if (Array.isArray(data)) {
+      trades = data;
+    } else if (data.trades) {
+      trades = data.trades;
+    } else if (data.data) {
+      trades = data.data;
+    }
+
+    // Transform activity data to include market info if available
+    const normalizedTrades = trades.map((trade: any) => ({
+      ...trade,
+      // Map conditionId to market if needed
+      market: trade.market || trade.conditionId,
+      // Ensure we have all fields from the new format
+      title: trade.title || trade.marketTitle,
+      slug: trade.slug || trade.marketSlug,
+      icon: trade.icon || trade.marketIcon,
+      eventSlug: trade.eventSlug,
+      type: trade.type || "TRADE",
+      size: trade.size || trade.amount,
+      usdcSize: trade.usdcSize || trade.value,
+      timestamp: trade.timestamp || trade.match_time || trade.last_update,
+    }));
+
     const normalizedData = {
-      trades: Array.isArray(data) ? data : data.trades || data.data || [],
-      total: data.total || (Array.isArray(data) ? data.length : 0),
+      trades: normalizedTrades,
+      total: data.total || trades.length,
     };
 
     return NextResponse.json(normalizedData, {

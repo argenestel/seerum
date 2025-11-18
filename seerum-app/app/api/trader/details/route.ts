@@ -91,19 +91,29 @@ export async function GET(request: NextRequest) {
       trades = Array.isArray(activity) ? activity : activity.trades || activity.data || [];
     }
 
-    // Get unique market addresses to fetch market details
-    const marketAddresses = new Set<string>();
+    // Get unique market identifiers (could be address, conditionId, or slug)
+    const marketIdentifiers = new Set<string>();
+    const conditionIdToMarketKey: Record<string, string> = {};
+    
     [...closedPositions, ...positions, ...trades].forEach((item) => {
-      if (item.market) marketAddresses.add(item.market);
+      const marketKey = item.market || item.conditionId || item.condition_id;
+      if (marketKey) {
+        marketIdentifiers.add(marketKey);
+        // Track conditionId mapping if present
+        if (item.conditionId || item.condition_id) {
+          const condId = item.conditionId || item.condition_id;
+          conditionIdToMarketKey[condId] = marketKey;
+        }
+      }
     });
 
     // Fetch market details for category analysis
     const marketDetails: Record<string, any> = {};
-    const marketPromises = Array.from(marketAddresses).slice(0, 50).map(async (marketAddr) => {
+    const marketPromises = Array.from(marketIdentifiers).slice(0, 100).map(async (marketKey) => {
       try {
-        // Try to get market by address or slug
-        const marketResponse = await fetch(
-          `${GAMMA_API_BASE}/markets/${marketAddr}`,
+        // First try to get market by key (could be address, slug, or conditionId) from Gamma API
+        let marketResponse = await fetch(
+          `${GAMMA_API_BASE}/markets/${marketKey}`,
           {
             method: "GET",
             headers: {
@@ -116,10 +126,77 @@ export async function GET(request: NextRequest) {
 
         if (marketResponse.ok) {
           const marketData = await marketResponse.json();
-          return { address: marketAddr, data: marketData };
+          return { key: marketKey, data: marketData };
+        }
+
+        // If that fails, try Data API
+        const dataApiResponse = await fetch(
+          `${DATA_API_BASE}/markets/${marketKey}`,
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              "Accept": "application/json",
+            },
+            next: { revalidate: 300 },
+          }
+        );
+
+        if (dataApiResponse.ok) {
+          const marketData = await dataApiResponse.json();
+          return { key: marketKey, data: marketData };
+        }
+
+        // If that fails and it looks like a conditionId (long hex string), try searching
+        if (marketKey.length === 66 && marketKey.startsWith('0x')) {
+          // Try searching markets by conditionId in Gamma API
+          const searchResponse = await fetch(
+            `${GAMMA_API_BASE}/markets?conditionId=${marketKey}&limit=1`,
+            {
+              method: "GET",
+              headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+              },
+              next: { revalidate: 300 },
+            }
+          );
+
+          if (searchResponse.ok) {
+            const searchData = await searchResponse.json();
+            if (Array.isArray(searchData) && searchData.length > 0) {
+              return { key: marketKey, data: searchData[0] };
+            }
+            if (searchData.data && Array.isArray(searchData.data) && searchData.data.length > 0) {
+              return { key: marketKey, data: searchData.data[0] };
+            }
+          }
+
+          // Try Data API search
+          const dataSearchResponse = await fetch(
+            `${DATA_API_BASE}/markets?conditionId=${marketKey}&limit=1`,
+            {
+              method: "GET",
+              headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+              },
+              next: { revalidate: 300 },
+            }
+          );
+
+          if (dataSearchResponse.ok) {
+            const searchData = await dataSearchResponse.json();
+            if (Array.isArray(searchData) && searchData.length > 0) {
+              return { key: marketKey, data: searchData[0] };
+            }
+            if (searchData.data && Array.isArray(searchData.data) && searchData.data.length > 0) {
+              return { key: marketKey, data: searchData.data[0] };
+            }
+          }
         }
       } catch (error) {
-        console.error(`Error fetching market ${marketAddr}:`, error);
+        console.error(`Error fetching market ${marketKey}:`, error);
       }
       return null;
     });
@@ -127,7 +204,15 @@ export async function GET(request: NextRequest) {
     const marketResults = await Promise.all(marketPromises);
     marketResults.forEach((result) => {
       if (result && result.data) {
-        marketDetails[result.address] = result.data;
+        marketDetails[result.key] = result.data;
+        // Also map by conditionId if available
+        if (result.data.conditionId) {
+          marketDetails[result.data.conditionId] = result.data;
+        }
+        // Map by slug if available
+        if (result.data.slug) {
+          marketDetails[result.data.slug] = result.data;
+        }
       }
     });
 

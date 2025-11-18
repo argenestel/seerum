@@ -21,7 +21,7 @@ export async function createClobClientFromVault(
   const wallet = new Wallet(vaultPrivateKey);
 
   // Create provider
-  const provider = new ethers.JsonRpcProvider(
+  const provider = new ethers.providers.JsonRpcProvider(
     process.env.NEXT_PUBLIC_POLYGON_RPC_URL || "https://polygon-rpc.com"
   );
 
@@ -48,8 +48,8 @@ export async function createClobClientFromVault(
   );
 
   // Create or derive API credentials
-  const apiCreds = await client.create_or_derive_api_creds();
-  client.set_api_creds(apiCreds);
+  const apiCreds = await client.createOrDeriveApiKey();
+  (client as any).creds = apiCreds;
 
   return client;
 }

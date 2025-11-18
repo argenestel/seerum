@@ -15,6 +15,10 @@ export interface LeaderboardEntry {
   trades?: number;
   // Legacy field for compatibility
   user?: string;
+  // Seer score fields
+  seerscore?: number;
+  raw_seer_score?: number;
+  active_days?: number;
 }
 
 export interface LeaderboardResponse {

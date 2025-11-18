@@ -1,6 +1,6 @@
 "use client";
 
-import { TrendingUp, TrendingDown, Copy, ExternalLink, CheckCircle2, Loader2 } from "lucide-react";
+import { Copy, CheckCircle2, Loader2 } from "lucide-react";
 import { LeaderboardEntry } from "@/lib/types/polymarket";
 import Link from "next/link";
 import { useIsSubscribedToTrader, useSubscribeToTrader, useUnsubscribeFromTrader } from "@/lib/hooks/useCopyTrade";
@@ -63,6 +63,10 @@ export function TraderCard({ trader, rank, onCopyTrade }: TraderCardProps) {
     ? (typeof trader.winRate === 'number' ? trader.winRate : parseFloat(trader.winRate?.toString() || "0"))
     : 0;
 
+  const seerScore = trader.seerscore !== undefined 
+    ? (typeof trader.seerscore === 'number' ? trader.seerscore : parseFloat(trader.seerscore?.toString() || "0"))
+    : 0;
+
   const displayName = trader.userName || formatAddress(address);
 
   const formatCurrency = (value: number | string) => {
@@ -76,122 +80,81 @@ export function TraderCard({ trader, rank, onCopyTrade }: TraderCardProps) {
     return `$${num.toFixed(2)}`;
   };
 
+  const getSeerScoreColor = (score: number) => {
+    if (score >= 10) return "text-yellow-600 dark:text-yellow-400";
+    if (score >= 9) return "text-purple-600 dark:text-purple-400";
+    if (score >= 8) return "text-blue-600 dark:text-blue-400";
+    if (score >= 7) return "text-green-600 dark:text-green-400";
+    return "text-foreground";
+  };
+
   return (
     <>
-      <div className="backdrop-blur-xl bg-white/10 dark:bg-black/10 border border-border rounded-2xl p-6 hover:bg-white/15 dark:hover:bg-black/15 transition-all">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              {trader.profileImage ? (
-                <img
-                  src={trader.profileImage}
-                  alt={displayName}
-                  className="w-10 h-10 rounded-full border border-border object-cover"
-                  onError={(e) => {
-                    // Fallback to rank badge if image fails to load
-                    e.currentTarget.style.display = 'none';
-                  }}
-                />
-              ) : (
-                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-muted backdrop-blur-md border border-border font-semibold">
-                  #{rank}
-                </div>
-              )}
-              {trader.profileImage && (
-                <div className="absolute -bottom-1 -right-1 flex items-center justify-center w-5 h-5 rounded-full bg-muted backdrop-blur-md border border-border text-xs font-semibold">
-                  #{rank}
-                </div>
-              )}
-            </div>
+      <div className="border border-border rounded-lg p-4 hover:bg-muted/50 transition-colors">
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="text-xs text-muted-foreground">#{rank}</div>
             <div>
-              <h3 className="font-semibold text-lg">
+              <h3 className="font-medium text-sm">
                 {displayName}
               </h3>
-              <a
-                href={`https://polymarket.com/profile/${address}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1"
-              >
-                View Profile
-                <ExternalLink className="h-3 w-3" />
-              </a>
             </div>
           </div>
-          {pnl >= 0 ? (
-            <TrendingUp className="h-5 w-5 text-green-500" />
-          ) : (
-            <TrendingDown className="h-5 w-5 text-red-500" />
+          {seerScore > 0 && (
+            <div className="text-right">
+              <div className="text-xs text-muted-foreground">Seer</div>
+              <div className={`text-lg font-semibold ${getSeerScoreColor(seerScore)}`}>
+                {seerScore.toFixed(1)}
+              </div>
+            </div>
           )}
         </div>
 
-        <div className="space-y-3 mb-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="backdrop-blur-md bg-white/5 dark:bg-black/5 rounded-lg p-3 border border-border">
-              <div className="text-xs text-muted-foreground mb-1">Volume</div>
-              <div className="font-semibold">{formatCurrency(vol)}</div>
-            </div>
-            <div className="backdrop-blur-md bg-white/5 dark:bg-black/5 rounded-lg p-3 border border-border">
-              <div className="text-xs text-muted-foreground mb-1">P&L</div>
-              <div
-                className={`font-semibold ${
-                  pnl >= 0 ? "text-green-500" : "text-red-500"
-                }`}
-              >
-                {pnl >= 0 ? "+" : ""}
-                {formatCurrency(pnl)}
-              </div>
+        <div className="grid grid-cols-2 gap-2 mb-3 text-sm">
+          <div>
+            <div className="text-xs text-muted-foreground">Volume</div>
+            <div className="font-medium">{formatCurrency(vol)}</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">P&L</div>
+            <div
+              className={`font-medium ${
+                pnl >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+              }`}
+            >
+              {pnl >= 0 ? "+" : ""}
+              {formatCurrency(pnl)}
             </div>
           </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="backdrop-blur-md bg-white/5 dark:bg-black/5 rounded-lg p-3 border border-border">
-              <div className="text-xs text-muted-foreground mb-1">ROI</div>
-              <div
-                className={`font-semibold ${
-                  roi >= 0 ? "text-green-500" : "text-red-500"
-                }`}
-              >
-                {roi >= 0 ? "+" : ""}
-                {roi.toFixed(2)}%
-              </div>
+          {trader.trades !== undefined && trader.trades !== null ? (
+            <div>
+              <div className="text-xs text-muted-foreground">Trades</div>
+              <div className="font-medium">{trader.trades.toLocaleString()}</div>
             </div>
-            {winRate > 0 && (
-              <div className="backdrop-blur-md bg-white/5 dark:bg-black/5 rounded-lg p-3 border border-border">
-                <div className="text-xs text-muted-foreground mb-1">Win Rate</div>
-                <div className="font-semibold">{winRate.toFixed(1)}%</div>
-              </div>
-            )}
-            {trader.trades !== undefined && trader.trades !== null && (
-              <div className="backdrop-blur-md bg-white/5 dark:bg-black/5 rounded-lg p-3 border border-border">
-                <div className="text-xs text-muted-foreground mb-1">Total Trades</div>
-                <div className="font-semibold">{trader.trades}</div>
-              </div>
-            )}
-          </div>
+          ) : null}
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 pt-2 border-t border-border">
           <Link
             href={`/trader/${address}`}
-            className="flex-1 rounded-lg bg-muted text-foreground px-4 py-2.5 text-sm font-medium hover:bg-muted/80 transition-all text-center"
+            className="flex-1 text-center text-xs text-muted-foreground hover:text-foreground transition-colors py-1.5"
           >
-            View Details
+            Details
           </Link>
           {isSubscribed ? (
             <button
               onClick={handleUnsubscribe}
               disabled={unsubscribe.isPending}
-              className="flex-1 rounded-lg bg-green-500/20 text-green-500 border border-green-500/30 px-4 py-2.5 text-sm font-medium hover:bg-green-500/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 text-xs text-green-600 dark:text-green-400 hover:opacity-80 transition-opacity py-1.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
             >
               {unsubscribe.isPending ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Stopping...
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Stopping
                 </>
               ) : (
                 <>
-                  <CheckCircle2 className="h-4 w-4" />
+                  <CheckCircle2 className="h-3 w-3" />
                   Copying
                 </>
               )}
@@ -200,17 +163,17 @@ export function TraderCard({ trader, rank, onCopyTrade }: TraderCardProps) {
             <button
               onClick={handleSubscribe}
               disabled={subscribe.isPending || !traderAddress}
-              className="flex-1 rounded-lg bg-primary text-primary-foreground px-4 py-2.5 text-sm font-medium hover:bg-primary/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 text-xs text-foreground hover:opacity-80 transition-opacity py-1.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
             >
               {subscribe.isPending ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Starting...
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Starting
                 </>
               ) : (
                 <>
-                  <Copy className="h-4 w-4" />
-                  Copy Trade
+                  <Copy className="h-3 w-3" />
+                  Copy
                 </>
               )}
             </button>

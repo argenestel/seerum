@@ -52,11 +52,22 @@ export async function POST(request: NextRequest) {
       privateKey, // Store unencrypted for server access
     });
 
+    // Compute Safe address from vault address
+    let safeAddress: string | null = null;
+    try {
+      const { getSafeAddressForVault } = await import("@/lib/utils/vault-safe");
+      safeAddress = await getSafeAddressForVault(vaultAddress);
+    } catch (error) {
+      console.error("Error computing Safe address:", error);
+      // Continue without Safe address - it can be computed later
+    }
+
     return NextResponse.json(
       {
         success: true,
         vaultId: vault.id,
         vaultAddress: vault.vaultAddress,
+        safeAddress,
         message: "Vault created successfully",
       },
       {
