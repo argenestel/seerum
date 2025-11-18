@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { RelayClient } from "@polymarket/builder-relayer-client";
+import { RelayClient, SafeTransaction, OperationType } from "@polymarket/builder-relayer-client";
 import { BuilderConfig } from "@polymarket/builder-signing-sdk";
 import { Wallet } from "@ethersproject/wallet";
 
@@ -8,14 +8,7 @@ const CHAIN_ID = 137; // Polygon mainnet
 const BUILDER_SIGNING_SERVER_URL =
   process.env.NEXT_PUBLIC_BUILDER_SIGNING_SERVER_URL || "http://localhost:3001";
 
-/**
- * Execute a trade using the relayer (gasless transaction)
- * This uses the builder signing server for order attribution
- * 
- * Options:
- * 1. Direct EOA transaction (user's wallet) - simpler, no Safe needed
- * 2. Safe wallet transaction - better UX, requires Safe deployment
- */
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -70,17 +63,23 @@ export async function POST(request: NextRequest) {
     if (useSafe && safeAddress) {
       // Option 1: Execute via Safe wallet (requires Safe to be deployed)
       // The relayer will handle the Safe transaction
-      const response = await client.execute({
+      const safeTransaction: SafeTransaction = {
         to: safeAddress, // Safe wallet address
+        operation: OperationType.Call,
         data: "0x", // Transaction data (would be encoded function call)
         value: "0",
-      });
+      };
+      
+      const response = await client.execute(
+        [safeTransaction],
+        `Execute trade via Safe wallet`
+      );
       
       const result = await response.wait();
       
       return NextResponse.json({
         success: true,
-        transactionHash: result.transactionHash,
+        transactionHash: result!.transactionHash,
         safeAddress: safeAddress,
         method: "safe",
       });

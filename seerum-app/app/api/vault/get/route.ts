@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      const recoveredAddress = ethers.verifyMessage(message, signature);
+      const recoveredAddress = ethers.utils.verifyMessage(message, signature);
       if (recoveredAddress.toLowerCase() !== userAddress.toLowerCase()) {
         return NextResponse.json(
           { error: "Signature verification failed" },

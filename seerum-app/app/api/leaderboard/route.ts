@@ -80,16 +80,19 @@ export async function GET(request: NextRequest) {
       // If response has data property
       normalizedData = {
         ...data,
-        data: data.data.map((entry: unknown) => ({
-          ...entry,
-          user: entry.proxyWallet || entry.user,
-          rank: typeof entry.rank === 'string' ? parseInt(entry.rank) : entry.rank,
-          roi: entry.roi !== undefined 
-            ? entry.roi 
-            : entry.vol > 0 
-              ? (entry.pnl / entry.vol) * 100 
-              : 0,
-        })),
+        data: data.data.map((entry: any) => {
+          const entryObj = entry as Record<string, any>;
+          return {
+            ...entryObj,
+            user: entryObj.proxyWallet || entryObj.user,
+            rank: typeof entryObj.rank === 'string' ? parseInt(entryObj.rank) : entryObj.rank,
+            roi: entryObj.roi !== undefined 
+              ? entryObj.roi 
+              : entryObj.vol > 0 
+                ? (entryObj.pnl / entryObj.vol) * 100 
+                : 0,
+          };
+        }),
       };
     } else {
       normalizedData = data;
