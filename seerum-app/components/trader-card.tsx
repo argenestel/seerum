@@ -50,7 +50,7 @@ export function TraderCard({ trader, rank }: TraderCardProps) {
   // Handle both number and string types
   const pnl = typeof trader.pnl === 'number' ? trader.pnl : parseFloat(trader.pnl?.toString() || "0");
   const vol = typeof trader.vol === 'number' ? trader.vol : parseFloat(trader.vol?.toString() || "0");
-
+  
   const seerScore = trader.seerscore !== undefined 
     ? (typeof trader.seerscore === 'number' ? trader.seerscore : parseFloat(trader.seerscore?.toString() || "0"))
     : 0;
@@ -102,18 +102,18 @@ export function TraderCard({ trader, rank }: TraderCardProps) {
           <div>
             <div className="text-xs text-muted-foreground">Volume</div>
             <div className="font-medium">{formatCurrency(vol)}</div>
-          </div>
+            </div>
           <div>
             <div className="text-xs text-muted-foreground">P&L</div>
-            <div
+              <div
               className={`font-medium ${
                 pnl >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
-              }`}
-            >
-              {pnl >= 0 ? "+" : ""}
-              {formatCurrency(pnl)}
+                }`}
+              >
+                {pnl >= 0 ? "+" : ""}
+                {formatCurrency(pnl)}
+              </div>
             </div>
-          </div>
           {trader.trades !== undefined && trader.trades !== null ? (
             <div>
               <div className="text-xs text-muted-foreground">Trades</div>

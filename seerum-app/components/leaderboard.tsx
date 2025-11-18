@@ -169,20 +169,20 @@ export function Leaderboard() {
       {data && data.data && data.data.length > 0 && (
         <>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {data.data.map((trader, index) => {
-              const traderKey = trader.proxyWallet || trader.user || `trader-${index}`;
-              const traderRank = typeof trader.rank === 'string' ? parseInt(trader.rank) : (trader.rank || index + 1);
+          {data.data.map((trader, index) => {
+            const traderKey = trader.proxyWallet || trader.user || `trader-${index}`;
+            const traderRank = typeof trader.rank === 'string' ? parseInt(trader.rank) : (trader.rank || index + 1);
               
-              return (
-                <TraderCard
-                  key={traderKey}
-                  trader={trader}
-                  rank={traderRank}
-                  onCopyTrade={handleCopyTrade}
-                />
-              );
-            })}
-          </div>
+            return (
+              <TraderCard
+                key={traderKey}
+                trader={trader}
+                rank={traderRank}
+                onCopyTrade={handleCopyTrade}
+              />
+            );
+          })}
+        </div>
 
           {/* Pagination */}
           {totalPages > 1 && (

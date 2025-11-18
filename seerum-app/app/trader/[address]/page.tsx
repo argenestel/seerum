@@ -296,21 +296,21 @@ export default function TraderDetailPage() {
                                 e.currentTarget.style.display = 'none';
                               }}
                             />
-                          )}
+                            )}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-start justify-between gap-2 mb-2">
                               <h3 className="font-medium text-sm line-clamp-2">{title}</h3>
                               {slug && (
-                                <a
+                          <a
                                   href={`https://polymarket.com/event/${activity.eventSlug || slug}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
+                            target="_blank"
+                            rel="noopener noreferrer"
                                   className="flex-shrink-0"
-                                >
+                          >
                                   <ExternalLink className="h-4 w-4 text-muted-foreground hover:text-foreground" />
-                                </a>
+                          </a>
                               )}
-                            </div>
+                        </div>
                             <div className="flex items-center gap-4 text-xs text-muted-foreground">
                               <span className="uppercase">{type}</span>
                               {size > 0 && (
@@ -378,7 +378,7 @@ export default function TraderDetailPage() {
                               {outcome}
                             </div>
                             <div className="grid grid-cols-2 gap-4 text-sm">
-                              <div>
+                            <div>
                                 <div className="text-xs text-muted-foreground mb-1">Size</div>
                                 <div className="font-medium">{formatSize(size)}</div>
                               </div>
@@ -392,18 +392,18 @@ export default function TraderDetailPage() {
                                   className={`font-semibold ${
                                     cashPnl >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
                                   }`}
-                                >
+                                    >
                                   {cashPnl >= 0 ? "+" : ""}
                                   {formatCurrency(cashPnl)}
                                 </div>
-                              </div>
+                            </div>
                               <div>
                                 <div className="text-xs text-muted-foreground mb-1">% P&L</div>
-                                <div
+                            <div
                                   className={`font-semibold ${
                                     percentPnl >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
-                                  }`}
-                                >
+                              }`}
+                            >
                                   {percentPnl >= 0 ? "+" : ""}
                                   {percentPnl.toFixed(2)}%
                                 </div>
@@ -412,7 +412,7 @@ export default function TraderDetailPage() {
                             {position.redeemable && (
                               <div className="mt-2 text-xs text-muted-foreground">
                                 Redeemable
-                              </div>
+                            </div>
                             )}
                           </div>
                         </div>

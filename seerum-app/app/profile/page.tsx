@@ -48,6 +48,9 @@ export default function ProfilePage() {
   const { data: userProfile, isLoading: loadingProfile } = useUserProfile({
     address: statsAddress,
   });
+  
+  // Show loading if we're waiting for vault info
+  const isLoadingVaultInfo = !vaultInfo && address;
   const { data: safeStatus, isLoading: checkingSafe } = useSafeWalletStatus();
 
   // Prepare P&L chart data from API
@@ -57,11 +60,23 @@ export default function ProfilePage() {
     }
 
     return userProfile.pnlData
-      .map((point) => ({
-        date: format(new Date(point.t * 1000), "MMM dd"),
-        timestamp: point.t * 1000,
-        pnl: point.p,
-      }))
+      .map((point) => {
+        try {
+          const timestamp = point.t * 1000;
+          const date = new Date(timestamp);
+          if (isNaN(date.getTime())) {
+            return null;
+          }
+          return {
+            date: format(date, "MMM dd"),
+            timestamp,
+            pnl: point.p,
+          };
+        } catch {
+          return null;
+        }
+      })
+      .filter((point): point is { date: string; timestamp: number; pnl: number } => point !== null)
       .sort((a, b) => a.timestamp - b.timestamp);
   }, [userProfile?.pnlData]);
 
@@ -75,20 +90,45 @@ export default function ProfilePage() {
     const dailyData: Record<string, { date: string; volume: number; trades: number }> = {};
 
     userProfile.activity.forEach((trade) => {
-      const date = format(new Date(trade.match_time || trade.last_update), "MMM dd");
-      if (!dailyData[date]) {
-        dailyData[date] = { date, volume: 0, trades: 0 };
+      // Safely parse date with validation
+      const timestamp = trade.match_time || trade.last_update;
+      if (!timestamp) return; // Skip if no timestamp
+      
+      let date: Date;
+      try {
+        // Handle both string and number timestamps
+        if (typeof timestamp === 'number') {
+          date = new Date(timestamp * 1000); // Assume seconds if number
+        } else {
+          date = new Date(timestamp);
+        }
+        
+        // Validate date
+        if (isNaN(date.getTime())) {
+          return; // Skip invalid dates
+        }
+      } catch {
+        return; // Skip if date parsing fails
+      }
+
+      const dateStr = format(date, "MMM dd");
+      if (!dailyData[dateStr]) {
+        dailyData[dateStr] = { date: dateStr, volume: 0, trades: 0 };
       }
 
       const size = parseFloat(trade.size || "0");
       const price = parseFloat(trade.price || "0");
       const volume = size * price;
-      dailyData[date].volume += volume;
-      dailyData[date].trades += 1;
+      dailyData[dateStr].volume += volume;
+      dailyData[dateStr].trades += 1;
     });
 
     return Object.values(dailyData).sort((a, b) => {
-      return new Date(a.date).getTime() - new Date(b.date).getTime();
+      try {
+        return new Date(a.date).getTime() - new Date(b.date).getTime();
+      } catch {
+        return 0;
+      }
     });
   }, [userProfile?.activity]);
 
@@ -186,7 +226,7 @@ export default function ProfilePage() {
                         </div>
                       </>
                     ) : (
-                      <span className="font-mono">{formatAddress(address || "")}</span>
+                    <span className="font-mono">{formatAddress(address || "")}</span>
                     )}
                     {profile?.rank && (
                       <span>Rank: #{profile.rank}</span>
@@ -194,7 +234,7 @@ export default function ProfilePage() {
                   </div>
                   <div className="flex gap-4">
                     <a
-                      href={`https://polymarket.com/profile/${profile?.proxyWallet || address}`}
+                      href={`https://polymarket.com/profile/${profile?.proxyWallet || safeInfo?.safeAddress || statsAddress || address}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
@@ -203,7 +243,7 @@ export default function ProfilePage() {
                       <ExternalLink className="h-3 w-3" />
                     </a>
                     <a
-                      href={`https://polygonscan.com/address/${address}`}
+                      href={`https://polygonscan.com/address/${safeInfo?.safeAddress || statsAddress || address}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
@@ -550,10 +590,24 @@ export default function ProfilePage() {
                           className="border-b border-border hover:bg-white/5 dark:hover:bg-black/5"
                         >
                           <td className="py-3 px-4 text-sm">
-                            {format(
-                              new Date(trade.match_time || trade.last_update),
-                              "MMM dd, yyyy HH:mm"
-                            )}
+                            {(() => {
+                              try {
+                                const timestamp = trade.match_time || trade.last_update;
+                                if (!timestamp) return "N/A";
+                                
+                                let date: Date;
+                                if (typeof timestamp === 'number') {
+                                  date = new Date(timestamp * 1000);
+                                } else {
+                                  date = new Date(timestamp);
+                                }
+                                
+                                if (isNaN(date.getTime())) return "N/A";
+                                return format(date, "MMM dd, yyyy HH:mm");
+                              } catch {
+                                return "N/A";
+                              }
+                            })()}
                           </td>
                           <td className="py-3 px-4">
                             <span
