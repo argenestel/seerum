@@ -28,7 +28,6 @@ export async function GET(request: NextRequest) {
 
     // Parse CSV - handle quoted values
     const lines = csvContent.trim().split("\n");
-    const headers = lines[0].split(",");
     
     const wallets: AnalyzedWallet[] = lines.slice(1)
       .filter((line) => line.trim()) // Skip empty lines

@@ -4,17 +4,52 @@ import {
   ArrowLeft,
   ExternalLink,
   Target,
-  BarChart3,
   Award,
   Tag,
+  Copy,
+  CheckCircle2,
+  Loader2,
 } from "lucide-react";
 import { useTraderDetails } from "@/lib/hooks/useTraderDetails";
-import { formatDistanceToNow, format } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 import { formatAddress, formatCurrency } from "@/lib/utils";
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useLeaderboard } from "@/lib/hooks/useLeaderboard";
+import { useIsSubscribedToTrader, useSubscribeToTrader, useUnsubscribeFromTrader } from "@/lib/hooks/useCopyTrade";
+import { Address } from "viem";
+
+interface TradeActivity {
+  timestamp?: string | number;
+  match_time?: string | number;
+  last_update?: string | number;
+  type?: string;
+  size?: string | number;
+  usdcSize?: string | number;
+  title?: string;
+  marketTitle?: string;
+  slug?: string;
+  marketSlug?: string;
+  icon?: string;
+  marketIcon?: string;
+  eventSlug?: string;
+  transactionHash?: string;
+  id?: string;
+}
+
+interface Position {
+  cashPnl?: string | number;
+  percentPnl?: string | number;
+  currentValue?: string | number;
+  size?: string | number;
+  title?: string;
+  outcome?: string;
+  icon?: string;
+  slug?: string;
+  eventSlug?: string;
+  redeemable?: boolean;
+}
 
 export default function TraderDetailPage() {
   const params = useParams();
@@ -22,7 +57,34 @@ export default function TraderDetailPage() {
   const { data, isLoading, error } = useTraderDetails({
     address: address || "",
   });
-  const [activeTab, setActiveTab] = useState<"overview" | "trades" | "positions" | "categories">("overview");
+  const [activeTab, setActiveTab] = useState<"trades" | "positions" | "categories">("trades");
+  
+  const traderAddress = address as Address;
+  const isSubscribed = useIsSubscribedToTrader(traderAddress);
+  const subscribe = useSubscribeToTrader();
+  const unsubscribe = useUnsubscribeFromTrader();
+  
+  const handleSubscribe = async () => {
+    if (!traderAddress) return;
+    try {
+      await subscribe.mutateAsync(traderAddress);
+    } catch (error) {
+      console.error("Subscribe error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to subscribe";
+      alert(`Failed to subscribe: ${errorMessage}\n\nPlease ensure:\n1. The listener server is running on port 3002\n2. NEXT_PUBLIC_LISTENER_SERVER_URL is set in .env.local`);
+    }
+  };
+  
+  const handleUnsubscribe = async () => {
+    if (!traderAddress) return;
+    try {
+      await unsubscribe.mutateAsync(traderAddress);
+    } catch (error) {
+      console.error("Unsubscribe error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to unsubscribe";
+      alert(`Failed to unsubscribe: ${errorMessage}`);
+    }
+  };
 
   // Fetch trader info from leaderboard to get profile image and name
   const { data: leaderboardData } = useLeaderboard({
@@ -38,22 +100,6 @@ export default function TraderDetailPage() {
     );
   }, [leaderboardData, address]);
 
-  const formatDate = (timestamp: string | number) => {
-    try {
-      const date = typeof timestamp === "string" ? new Date(timestamp) : new Date(timestamp * 1000);
-      return format(date, "MMM dd, yyyy HH:mm");
-    } catch {
-      return "Unknown";
-    }
-  };
-
-  const formatPrice = (price: string | number | undefined | null) => {
-    if (price === undefined || price === null) return "$0.0000";
-    const num = typeof price === "string" ? parseFloat(price) : price;
-    if (isNaN(num)) return "$0.0000";
-    return `$${num.toFixed(4)}`;
-  };
-
   const formatSize = (size: string | number | undefined | null) => {
     if (size === undefined || size === null) return "0.0000";
     const num = typeof size === "string" ? parseFloat(size) : size;
@@ -61,44 +107,11 @@ export default function TraderDetailPage() {
     return num.toFixed(4);
   };
 
-  // Calculate additional stats
-  const stats = useMemo(() => {
-    if (!data) return null;
-
-    const totalVolume = data.trades.reduce((sum: number, trade: any) => {
-      const size = parseFloat(trade.size || "0");
-      const price = parseFloat(trade.price || "0");
-      return sum + size * price;
-    }, 0);
-
-    const totalRealizedPnl = data.closedPositions.reduce((sum: number, pos: any) => {
-      return sum + parseFloat(pos.realizedPnl || pos.realized_pnl || "0");
-    }, 0);
-
-    const avgWin = data.closedPositions
-      .filter((p: any) => parseFloat(p.realizedPnl || p.realized_pnl || "0") > 0)
-      .reduce((sum: number, p: any) => sum + parseFloat(p.realizedPnl || p.realized_pnl || "0"), 0) /
-      Math.max(data.winningPositions, 1);
-
-    const avgLoss = data.closedPositions
-      .filter((p: any) => parseFloat(p.realizedPnl || p.realized_pnl || "0") < 0)
-      .reduce((sum: number, p: any) => sum + Math.abs(parseFloat(p.realizedPnl || p.realized_pnl || "0")), 0) /
-      Math.max(data.totalClosed - data.winningPositions, 1);
-
-    return {
-      totalVolume,
-      totalRealizedPnl,
-      avgWin,
-      avgLoss,
-      winLossRatio: avgLoss > 0 ? avgWin / avgLoss : 0,
-    };
-  }, [data]);
-
   // Sort categories by performance
   const sortedCategories = useMemo(() => {
     if (!data?.categoryStats) return [];
     return Object.entries(data.categoryStats)
-      .map(([name, stats]) => ({
+      .map(([name, stats]: [string, { count: number; pnl: number; wins: number; losses: number }]) => ({
         name,
         ...stats,
         winRate: stats.count > 0 ? (stats.wins / stats.count) * 100 : 0,
@@ -132,7 +145,46 @@ export default function TraderDetailPage() {
               />
             )}
             <div className="flex-1">
-              <h1 className="text-2xl md:text-3xl font-bold mb-2">{displayName}</h1>
+              <div className="flex items-center gap-3 mb-2">
+                <h1 className="text-2xl md:text-3xl font-bold">{displayName}</h1>
+                {isSubscribed ? (
+                  <button
+                    onClick={handleUnsubscribe}
+                    disabled={unsubscribe.isPending}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {unsubscribe.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Stopping
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="h-4 w-4" />
+                        Copying
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleSubscribe}
+                    disabled={subscribe.isPending || !traderAddress}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-black dark:bg-white dark:text-black hover:bg-black/90 dark:hover:bg-white/90 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {subscribe.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Starting
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-4 w-4" />
+                        Copy
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
               <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                 <span className="font-mono">{formatAddress(address)}</span>
                 <a
@@ -178,7 +230,6 @@ export default function TraderDetailPage() {
         {/* Tabs */}
         <div className="flex items-center gap-1 mb-6 border-b border-border overflow-x-auto">
           {[
-            { id: "overview", label: "Overview", icon: BarChart3 },
             { id: "trades", label: "Activity", icon: Target },
             { id: "positions", label: "Positions", icon: Award },
             { id: "categories", label: "Categories", icon: Tag },
@@ -216,123 +267,12 @@ export default function TraderDetailPage() {
 
         {data && (
           <>
-            {/* Overview Tab */}
-            {activeTab === "overview" && (
-              <div className="space-y-6">
-                {/* Key Metrics */}
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <div className="border border-border rounded-lg p-4">
-                    <div className="text-xs text-muted-foreground mb-1">Total P&L</div>
-                    <div
-                      className={`text-xl font-semibold ${
-                        stats?.totalRealizedPnl && stats.totalRealizedPnl >= 0
-                          ? "text-green-600 dark:text-green-400"
-                          : "text-red-600 dark:text-red-400"
-                      }`}
-                    >
-                      {stats?.totalRealizedPnl
-                        ? formatCurrency(stats.totalRealizedPnl)
-                        : "$0.00"}
-                    </div>
-                  </div>
-
-                  <div className="border border-border rounded-lg p-4">
-                    <div className="text-xs text-muted-foreground mb-1">Total Trades</div>
-                    <div className="text-xl font-semibold">{data.trades.length}</div>
-                  </div>
-
-                  <div className="border border-border rounded-lg p-4">
-                    <div className="text-xs text-muted-foreground mb-1">Win Rate</div>
-                    <div className="text-xl font-semibold">
-                      {data.totalClosed > 0 
-                        ? ((data.winningPositions / data.totalClosed) * 100).toFixed(1) 
-                        : "0.0"}%
-                    </div>
-                  </div>
-                </div>
-
-                {/* Top Categories */}
-                {sortedCategories.length > 0 && (
-                  <div className="border border-border rounded-lg p-4">
-                    <h3 className="font-medium text-sm mb-3">Top Categories</h3>
-                    <div className="space-y-2">
-                      {sortedCategories.slice(0, 5).map((category) => (
-                        <div
-                          key={category.name}
-                          className="flex items-center justify-between text-sm"
-                        >
-                          <span className="text-muted-foreground">{category.name}</span>
-                          <div className="flex items-center gap-3">
-                            <span className="text-xs text-muted-foreground">
-                              {category.count} trades
-                            </span>
-                            <span
-                              className={`font-medium ${
-                                category.pnl >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
-                              }`}
-                            >
-                              {formatCurrency(category.pnl)}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Recent Closed Positions */}
-                {data.closedPositions.length > 0 && (
-                  <div>
-                    <h3 className="font-medium text-sm mb-3">Recent Positions</h3>
-                    <div className="space-y-2">
-                      {data.closedPositions.slice(0, 10).map((position: any, idx: number) => {
-                        const pnl = parseFloat(position.realizedPnl || position.realized_pnl || "0");
-                        // Try multiple keys to find market details
-                        const marketKey = position.market || position.conditionId || position.condition_id;
-                        const market = marketKey ? (
-                          data.marketDetails[marketKey] ||
-                          data.marketDetails[position.conditionId] ||
-                          data.marketDetails[position.condition_id] ||
-                          data.marketDetails[position.market]
-                        ) : null;
-                        const marketTitle = market?.question || market?.title || (marketKey ? formatAddress(marketKey) : "Unknown");
-                        return (
-                          <div
-                            key={idx}
-                            className="border border-border rounded-lg p-3 flex items-center justify-between hover:bg-muted/50 transition-colors"
-                          >
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium text-sm truncate">
-                                {marketTitle}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {position.outcome || market?.outcomes?.[position.outcomeIndex] || "N/A"}
-                              </div>
-                            </div>
-                            <div
-                              className={`text-sm font-semibold ml-4 ${
-                                pnl >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
-                              }`}
-                            >
-                              {pnl >= 0 ? "+" : ""}
-                              {formatCurrency(pnl)}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Trades Tab */}
             {activeTab === "trades" && (
               <div className="space-y-3">
                 {data.trades.length === 0 ? (
                   <div className="text-center py-12 text-sm text-muted-foreground">No activity found</div>
                 ) : (
-                  data.trades.map((activity: any, idx: number) => {
+                  data.trades.map((activity: TradeActivity, idx: number) => {
                     const timestamp = activity.timestamp || activity.match_time || activity.last_update;
                     const date = timestamp ? (typeof timestamp === 'number' ? new Date(timestamp * 1000) : new Date(timestamp)) : null;
                     const type = activity.type || "TRADE";
@@ -389,51 +329,89 @@ export default function TraderDetailPage() {
               </div>
             )}
 
-            {/* Closed Positions Tab */}
+            {/* Positions Tab */}
             {activeTab === "positions" && (
               <div className="space-y-2">
-                {data.closedPositions.length === 0 ? (
-                  <div className="text-center py-12 text-sm text-muted-foreground">
-                    No closed positions found
-                  </div>
-                ) : (
-                  data.closedPositions.map((position: any, idx: number) => {
-                    const pnl = parseFloat(position.realizedPnl || position.realized_pnl || "0");
-                    // Try multiple keys to find market details
-                    const marketKey = position.market || position.conditionId || position.condition_id;
-                    const market = marketKey ? (
-                      data.marketDetails[marketKey] ||
-                      data.marketDetails[position.conditionId] ||
-                      data.marketDetails[position.condition_id] ||
-                      data.marketDetails[position.market]
-                    ) : null;
-                    const marketTitle = market?.question || market?.title || (marketKey ? formatAddress(marketKey) : "Unknown");
+                {data.positions && data.positions.length > 0 ? (
+                  data.positions.map((position: Position, idx: number) => {
+                    const cashPnl = parseFloat(position.cashPnl || "0");
+                    const percentPnl = parseFloat(position.percentPnl || "0");
+                    const currentValue = parseFloat(position.currentValue || "0");
+                    const size = parseFloat(position.size || "0");
+                    const marketTitle = position.title || "Unknown Market";
+                    const outcome = position.outcome || "N/A";
+                    const icon = position.icon;
+                    const slug = position.slug;
+                    const eventSlug = position.eventSlug;
+                    
                     return (
                       <div
                         key={idx}
                         className="border border-border rounded-lg p-4 hover:bg-muted/50 transition-colors"
                       >
-                        <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-3">
+                          {icon && (
+                            <img
+                              src={icon}
+                              alt={marketTitle}
+                              className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                              }}
+                            />
+                          )}
                           <div className="flex-1 min-w-0">
-                            <div className="font-medium text-sm mb-1">
-                              {marketTitle}
+                            <div className="flex items-start justify-between gap-2 mb-2">
+                              <h3 className="font-medium text-sm line-clamp-2">{marketTitle}</h3>
+                              {(slug || eventSlug) && (
+                                <a
+                                  href={`https://polymarket.com/event/${eventSlug || slug}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex-shrink-0"
+                                >
+                                  <ExternalLink className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                                </a>
+                              )}
                             </div>
-                            <div className="text-xs text-muted-foreground">
-                              {position.outcome || market?.outcomes?.[position.outcomeIndex] || "N/A"}
+                            <div className="text-xs text-muted-foreground mb-3">
+                              {outcome}
                             </div>
-                          </div>
-                          <div className="text-right ml-4">
-                            <div
-                              className={`text-sm font-semibold ${
-                                pnl >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
-                              }`}
-                            >
-                              {pnl >= 0 ? "+" : ""}
-                              {formatCurrency(pnl)}
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                              <div>
+                                <div className="text-xs text-muted-foreground mb-1">Size</div>
+                                <div className="font-medium">{formatSize(size)}</div>
+                              </div>
+                              <div>
+                                <div className="text-xs text-muted-foreground mb-1">Current Value</div>
+                                <div className="font-medium">{formatCurrency(currentValue)}</div>
+                              </div>
+                              <div>
+                                <div className="text-xs text-muted-foreground mb-1">P&L</div>
+                                <div
+                                  className={`font-semibold ${
+                                    cashPnl >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+                                  }`}
+                                >
+                                  {cashPnl >= 0 ? "+" : ""}
+                                  {formatCurrency(cashPnl)}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-xs text-muted-foreground mb-1">% P&L</div>
+                                <div
+                                  className={`font-semibold ${
+                                    percentPnl >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+                                  }`}
+                                >
+                                  {percentPnl >= 0 ? "+" : ""}
+                                  {percentPnl.toFixed(2)}%
+                                </div>
+                              </div>
                             </div>
-                            {position.size && (
-                              <div className="text-xs text-muted-foreground mt-1">
-                                {formatSize(position.size)}
+                            {position.redeemable && (
+                              <div className="mt-2 text-xs text-muted-foreground">
+                                Redeemable
                               </div>
                             )}
                           </div>
@@ -441,7 +419,7 @@ export default function TraderDetailPage() {
                       </div>
                     );
                   })
-                )}
+                ) : null}
               </div>
             )}
 

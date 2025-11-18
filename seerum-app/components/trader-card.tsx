@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, CheckCircle2, Loader2 } from "lucide-react";
+import { Copy, CheckCircle2, Loader2, ExternalLink } from "lucide-react";
 import { LeaderboardEntry } from "@/lib/types/polymarket";
 import Link from "next/link";
 import { useIsSubscribedToTrader, useSubscribeToTrader, useUnsubscribeFromTrader } from "@/lib/hooks/useCopyTrade";
@@ -9,10 +9,9 @@ import { Address } from "viem";
 interface TraderCardProps {
   trader: LeaderboardEntry;
   rank: number;
-  onCopyTrade?: (address: string) => void;
 }
 
-export function TraderCard({ trader, rank, onCopyTrade }: TraderCardProps) {
+export function TraderCard({ trader, rank }: TraderCardProps) {
   // Get the address (proxyWallet or user)
   const address = trader.proxyWallet || trader.user || "";
   const traderAddress = address as Address;
@@ -51,17 +50,6 @@ export function TraderCard({ trader, rank, onCopyTrade }: TraderCardProps) {
   // Handle both number and string types
   const pnl = typeof trader.pnl === 'number' ? trader.pnl : parseFloat(trader.pnl?.toString() || "0");
   const vol = typeof trader.vol === 'number' ? trader.vol : parseFloat(trader.vol?.toString() || "0");
-  
-  // Calculate ROI if not provided: ROI = (PNL / Volume) * 100
-  const roi = trader.roi !== undefined 
-    ? (typeof trader.roi === 'number' ? trader.roi : parseFloat(trader.roi?.toString() || "0"))
-    : vol > 0 
-      ? (pnl / vol) * 100 
-      : 0;
-  
-  const winRate = trader.winRate !== undefined 
-    ? (typeof trader.winRate === 'number' ? trader.winRate : parseFloat(trader.winRate?.toString() || "0"))
-    : 0;
 
   const seerScore = trader.seerscore !== undefined 
     ? (typeof trader.seerscore === 'number' ? trader.seerscore : parseFloat(trader.seerscore?.toString() || "0"))
@@ -134,27 +122,28 @@ export function TraderCard({ trader, rank, onCopyTrade }: TraderCardProps) {
           ) : null}
         </div>
 
-        <div className="flex gap-2 pt-2 border-t border-border">
+        <div className="flex gap-2 pt-3 border-t border-border">
           <Link
             href={`/trader/${address}`}
-            className="flex-1 text-center text-xs text-muted-foreground hover:text-foreground transition-colors py-1.5"
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-foreground border border-border rounded-md hover:bg-muted hover:border-foreground/20 transition-all"
           >
+            <ExternalLink className="h-4 w-4" />
             Details
           </Link>
           {isSubscribed ? (
             <button
               onClick={handleUnsubscribe}
               disabled={unsubscribe.isPending}
-              className="flex-1 text-xs text-green-600 dark:text-green-400 hover:opacity-80 transition-opacity py-1.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {unsubscribe.isPending ? (
                 <>
-                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   Stopping
                 </>
               ) : (
                 <>
-                  <CheckCircle2 className="h-3 w-3" />
+                  <CheckCircle2 className="h-4 w-4" />
                   Copying
                 </>
               )}
@@ -163,16 +152,16 @@ export function TraderCard({ trader, rank, onCopyTrade }: TraderCardProps) {
             <button
               onClick={handleSubscribe}
               disabled={subscribe.isPending || !traderAddress}
-              className="flex-1 text-xs text-foreground hover:opacity-80 transition-opacity py-1.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-black dark:bg-white dark:text-black hover:bg-black/90 dark:hover:bg-white/90 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {subscribe.isPending ? (
                 <>
-                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   Starting
                 </>
               ) : (
                 <>
-                  <Copy className="h-3 w-3" />
+                  <Copy className="h-4 w-4" />
                   Copy
                 </>
               )}

@@ -2,20 +2,35 @@
 
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { Moon, Sun, Copy, Zap, Target, ArrowRight } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTheme } from "./theme-provider";
 import { Leaderboard } from "@/components/leaderboard";
 import { useAccount } from "wagmi";
 import { User } from "lucide-react";
 import Link from "next/link";
+import { VaultSetupModal } from "@/components/vault-setup-modal";
+import { useVault } from "@/lib/hooks/useVault";
 
 export default function Home() {
   const { theme, setTheme } = useTheme();
   const [tradeMode, setTradeMode] = useState<"copy" | "free">("copy");
-  const { isConnected } = useAccount();
+  const { isConnected, address } = useAccount();
+  const { data: vaultInfo, isLoading: loadingVault } = useVault();
+  const [showVaultModal, setShowVaultModal] = useState(false);
+
+  // Show modal when user connects and has no vault
+  useEffect(() => {
+    if (isConnected && address && !loadingVault && !vaultInfo?.vaultAddress) {
+      setShowVaultModal(true);
+    }
+  }, [isConnected, address, loadingVault, vaultInfo]);
 
   return (
     <div className="min-h-screen bg-background">
+      <VaultSetupModal 
+        isOpen={showVaultModal} 
+        onClose={() => setShowVaultModal(false)} 
+      />
       <header className="backdrop-blur-xl bg-white/10 dark:bg-black/10 border-b border-border p-4">
         <div className="container mx-auto flex items-center justify-between">
           <h1 className="text-xl font-semibold">Seerum</h1>

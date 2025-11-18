@@ -3,6 +3,34 @@ import { NextRequest, NextResponse } from "next/server";
 const DATA_API_BASE = "https://data-api.polymarket.com";
 const GAMMA_API_BASE = "https://gamma-api.polymarket.com";
 
+interface Trade {
+  market?: string;
+  title?: string;
+  marketTitle?: string;
+  slug?: string;
+  marketSlug?: string;
+  icon?: string;
+  marketIcon?: string;
+  conditionId?: string;
+}
+
+interface Position {
+  market?: string;
+  conditionId?: string;
+  condition_id?: string;
+  realizedPnl?: string | number;
+  realized_pnl?: string | number;
+}
+
+interface MarketData {
+  tags?: Array<{ name?: string; slug?: string }>;
+  question?: string;
+  title?: string;
+  slug?: string;
+  icon?: string;
+  conditionId?: string;
+}
+
 // Enable CORS
 export async function OPTIONS() {
   return new NextResponse(null, {
@@ -55,7 +83,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch current positions
     const positionsResponse = await fetch(
-      `${DATA_API_BASE}/positions?user=${address}&sortBy=CURRENT&sortDirection=DESC&sizeThreshold=.1&limit=100&offset=0`,
+      `${DATA_API_BASE}/positions?sizeThreshold=1&limit=100&sortBy=TOKENS&sortDirection=DESC&user=${address}`,
       {
         method: "GET",
         headers: {
@@ -108,11 +136,11 @@ export async function GET(request: NextRequest) {
     });
 
     // Fetch market details for category analysis
-    const marketDetails: Record<string, any> = {};
+    const marketDetails: Record<string, unknown> = {};
     const marketPromises = Array.from(marketIdentifiers).slice(0, 100).map(async (marketKey) => {
       try {
         // First try to get market by key (could be address, slug, or conditionId) from Gamma API
-        let marketResponse = await fetch(
+        const marketResponse = await fetch(
           `${GAMMA_API_BASE}/markets/${marketKey}`,
           {
             method: "GET",
@@ -213,22 +241,45 @@ export async function GET(request: NextRequest) {
         if (result.data.slug) {
           marketDetails[result.data.slug] = result.data;
         }
+        // Map by market address/id if available
+        if (result.data.id) {
+          marketDetails[result.data.id] = result.data;
+        }
+      }
+    });
+
+    // Also try to map markets from trades data (trades often have better market info)
+    trades.forEach((trade: Trade) => {
+      if (trade.market && trade.title && !marketDetails[trade.market]) {
+        // If we have market info from trade but haven't fetched it, create a basic entry
+        if (!marketDetails[trade.market]) {
+          marketDetails[trade.market] = {
+            question: trade.title || trade.marketTitle,
+            title: trade.title || trade.marketTitle,
+            slug: trade.slug || trade.marketSlug,
+            icon: trade.icon || trade.marketIcon,
+          };
+        }
+      }
+      // Map conditionId from trade to market if available
+      if (trade.conditionId && trade.market && marketDetails[trade.market]) {
+        marketDetails[trade.conditionId] = marketDetails[trade.market];
       }
     });
 
     // Analyze categories/tags from markets
     const categoryStats: Record<string, { count: number; pnl: number; wins: number; losses: number }> = {};
     
-    closedPositions.forEach((position: any) => {
-      const market = marketDetails[position.market];
+    closedPositions.forEach((position: Position) => {
+      const market = marketDetails[position.market || ""] as MarketData | undefined;
       if (market && market.tags) {
-        market.tags.forEach((tag: any) => {
+        market.tags.forEach((tag) => {
           const tagName = tag.name || tag.slug || "Unknown";
           if (!categoryStats[tagName]) {
             categoryStats[tagName] = { count: 0, pnl: 0, wins: 0, losses: 0 };
           }
           categoryStats[tagName].count++;
-          const pnl = parseFloat(position.realizedPnl || position.realized_pnl || "0");
+          const pnl = parseFloat(String(position.realizedPnl || position.realized_pnl || "0"));
           categoryStats[tagName].pnl += pnl;
           if (pnl > 0) {
             categoryStats[tagName].wins++;
@@ -242,7 +293,7 @@ export async function GET(request: NextRequest) {
     // Calculate trader IQ (win rate based on closed positions)
     const totalClosed = closedPositions.length;
     const winningPositions = closedPositions.filter(
-      (p: any) => parseFloat(p.realizedPnl || p.realized_pnl || "0") > 0
+      (p: Position) => parseFloat(String(p.realizedPnl || p.realized_pnl || "0")) > 0
     ).length;
     const traderIQ = totalClosed > 0 ? (winningPositions / totalClosed) * 100 : 0;
 

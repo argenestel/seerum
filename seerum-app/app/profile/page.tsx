@@ -3,6 +3,7 @@
 import { useAccount } from "wagmi";
 import { useUserProfile } from "@/lib/hooks/useUserProfile";
 import { useSafeWalletStatus } from "@/lib/hooks/useSafeWallet";
+import { useVault, useSafeAddress } from "@/lib/hooks/useVault";
 import { formatAddress, formatCurrency } from "@/lib/utils";
 import { format } from "date-fns";
 import {
@@ -38,8 +39,14 @@ import {
 
 export default function ProfilePage() {
   const { address, isConnected } = useAccount();
+  const { data: vaultInfo } = useVault();
+  const { data: safeInfo } = useSafeAddress(vaultInfo?.vaultAddress);
+  
+  // Use vault's safe address for stats, fallback to connected wallet
+  const statsAddress = safeInfo?.safeAddress || address || "";
+  
   const { data: userProfile, isLoading: loadingProfile } = useUserProfile({
-    address: address || "",
+    address: statsAddress,
   });
   const { data: safeStatus, isLoading: checkingSafe } = useSafeWalletStatus();
 
@@ -167,7 +174,20 @@ export default function ProfilePage() {
                     )}
                   </div>
                   <div className="flex flex-wrap gap-4 text-sm text-muted-foreground mb-4">
-                    <span className="font-mono">{formatAddress(address || "")}</span>
+                    {safeInfo?.safeAddress ? (
+                      <>
+                        <div>
+                          <span className="text-xs text-muted-foreground">Vault Safe:</span>{" "}
+                          <span className="font-mono">{formatAddress(safeInfo.safeAddress)}</span>
+                        </div>
+                        <div>
+                          <span className="text-xs text-muted-foreground">Connected:</span>{" "}
+                          <span className="font-mono">{formatAddress(address || "")}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <span className="font-mono">{formatAddress(address || "")}</span>
+                    )}
                     {profile?.rank && (
                       <span>Rank: #{profile.rank}</span>
                     )}

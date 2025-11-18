@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
       // If response has data property
       normalizedData = {
         ...data,
-        data: data.data.map((entry: any) => ({
+        data: data.data.map((entry: unknown) => ({
           ...entry,
           user: entry.proxyWallet || entry.user,
           rank: typeof entry.rank === 'string' ? parseInt(entry.rank) : entry.rank,
