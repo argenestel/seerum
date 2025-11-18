@@ -52,7 +52,7 @@ async function createTables() {
   console.log(`✅ Loaded SQL schema from: ${schemaPath}\n`);
 
   // Method 1: Try using Supabase JS client (won't work for DDL, but let's try)
-  const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+  const supabase = createClient(SUPABASE_URL || " ", SUPABASE_KEY || " ");
 
   // Method 2: Use Management API (requires access token)
   // For now, we'll provide instructions and use a workaround

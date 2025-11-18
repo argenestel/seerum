@@ -48,11 +48,11 @@ export function TraderCard({ trader, rank }: TraderCardProps) {
   };
   
   // Handle both number and string types
-  const pnl = typeof trader.pnl === 'number' ? trader.pnl : parseFloat(trader.pnl?.toString() || "0");
-  const vol = typeof trader.vol === 'number' ? trader.vol : parseFloat(trader.vol?.toString() || "0");
+  const pnl = typeof trader.pnl === 'number' ? trader.pnl : parseFloat((trader.pnl as number)?.toString() || "0");
+  const vol = typeof trader.vol === 'number' ? trader.vol : parseFloat((trader.vol as number)?.toString() || "0");
   
   const seerScore = trader.seerscore !== undefined 
-    ? (typeof trader.seerscore === 'number' ? trader.seerscore : parseFloat(trader.seerscore?.toString() || "0"))
+    ? (typeof trader.seerscore === 'number' ? trader.seerscore : parseFloat((trader.seerscore as number)?.toString() || "0"))
     : 0;
 
   const displayName = trader.userName || formatAddress(address);

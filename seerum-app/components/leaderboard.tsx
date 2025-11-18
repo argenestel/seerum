@@ -18,12 +18,6 @@ export function Leaderboard() {
     maxRank,
   });
 
-  const handleCopyTrade = (address: string) => {
-    // TODO: Implement copy trading logic
-    console.log("Copy trading for:", address);
-    // This will be implemented with Polymarket CLOB client
-  };
-
   const totalPages = data?.total ? Math.ceil(data.total / itemsPerPage) : 0;
   const hasNextPage = currentPage < totalPages - 1;
   const hasPrevPage = currentPage > 0;
@@ -178,7 +172,6 @@ export function Leaderboard() {
                 key={traderKey}
                 trader={trader}
                 rank={traderRank}
-                onCopyTrade={handleCopyTrade}
               />
             );
           })}

@@ -73,13 +73,3 @@ class EthersWalletAdapter {
   }
 }
 
-/**
- * Alternative: Create RelayClient using API route that handles the private key
- * This is more secure as the private key stays on the server
- */
-export async function createRelayClientViaAPI(): Promise<RelayClient | null> {
-  // This would call an API route that creates the RelayClient server-side
-  // The API route would need access to the user's private key or use a different auth method
-  return null;
-}
-

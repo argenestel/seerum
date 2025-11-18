@@ -120,8 +120,8 @@ export default function TraderDetailPage() {
   }, [data?.categoryStats]);
 
   const displayName = traderInfo?.userName || formatAddress(address);
-  const pnl = traderInfo ? (typeof traderInfo.pnl === 'number' ? traderInfo.pnl : parseFloat(traderInfo.pnl?.toString() || "0")) : 0;
-  const vol = traderInfo ? (typeof traderInfo.vol === 'number' ? traderInfo.vol : parseFloat(traderInfo.vol?.toString() || "0")) : 0;
+  const pnl = traderInfo ? (typeof traderInfo.pnl === 'number' ? traderInfo.pnl : parseFloat((traderInfo.pnl as number)?.toString() || "0")) : 0;
+  const vol = traderInfo ? (typeof traderInfo.vol === 'number' ? traderInfo.vol : parseFloat((traderInfo.vol as number)?.toString() || "0")) : 0;
 
   return (
     <div className="min-h-screen bg-background">
@@ -219,8 +219,8 @@ export default function TraderDetailPage() {
             <div className="border border-border rounded-lg p-4">
               <div className="text-xs text-muted-foreground mb-1">Win Rate</div>
               <div className="text-lg font-semibold">
-                {data?.totalClosed > 0 
-                  ? ((data.winningPositions / data.totalClosed) * 100).toFixed(1) 
+                {data?.totalClosed && data.totalClosed > 0 
+                  ? (((data.winningPositions && data.winningPositions > 0 ? data.winningPositions : 0) / (data.totalClosed && data.totalClosed > 0 ? data.totalClosed : 1)) * 100).toFixed(1) 
                   : "0.0"}%
               </div>
             </div>
@@ -276,7 +276,7 @@ export default function TraderDetailPage() {
                     const timestamp = activity.timestamp || activity.match_time || activity.last_update;
                     const date = timestamp ? (typeof timestamp === 'number' ? new Date(timestamp * 1000) : new Date(timestamp)) : null;
                     const type = activity.type || "TRADE";
-                    const size = parseFloat(activity.size || activity.usdcSize || "0");
+                    const size = parseFloat((activity.size as number)?.toString() || (activity.usdcSize as number)?.toString() || "0");
                     const title = activity.title || activity.marketTitle || "Unknown Market";
                     const slug = activity.slug || activity.marketSlug;
                     const icon = activity.icon || activity.marketIcon;
@@ -334,10 +334,10 @@ export default function TraderDetailPage() {
               <div className="space-y-2">
                 {data.positions && data.positions.length > 0 ? (
                   data.positions.map((position: Position, idx: number) => {
-                    const cashPnl = parseFloat(position.cashPnl || "0");
-                    const percentPnl = parseFloat(position.percentPnl || "0");
-                    const currentValue = parseFloat(position.currentValue || "0");
-                    const size = parseFloat(position.size || "0");
+                    const cashPnl = parseFloat((position.cashPnl as number)?.toString() || "0");
+                    const percentPnl = parseFloat((position.percentPnl as number)?.toString() || "0");
+                    const currentValue = parseFloat((position.currentValue as number)?.toString() || "0");
+                    const size = parseFloat((position.size as number)?.toString() || "0");
                     const marketTitle = position.title || "Unknown Market";
                     const outcome = position.outcome || "N/A";
                     const icon = position.icon;

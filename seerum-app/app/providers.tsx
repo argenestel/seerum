@@ -11,7 +11,7 @@ const config = getDefaultConfig({
   appName: "Seerum App",
   projectId: "YOUR_PROJECT_ID", // Replace with your WalletConnect project ID
   chains: [polygon], // Only Polygon - Polymarket operates on Polygon
-  ssr: true,
+  ssr: false, // Disable SSR to prevent localStorage access during build
 });
 
 const queryClient = new QueryClient();
