@@ -1,11 +1,12 @@
 "use client";
 
-import { X, Wallet, ExternalLink, CheckCircle2, AlertCircle, Loader2, DollarSign, User } from "lucide-react";
-import { useSafeWalletStatus, useDeploySafe, useDepositUSDC } from "@/lib/hooks/useSafeWallet";
+import { X, Wallet, ExternalLink, CheckCircle2, AlertCircle, User, ArrowRightLeft } from "lucide-react";
+import { useSafeWalletStatus, useDeploySafe } from "@/lib/hooks/useSafeWallet";
 import { useAccount } from "wagmi";
 import { formatAddress } from "@/lib/utils";
 import { useState } from "react";
 import Link from "next/link";
+import { DepositModal } from "./deposit-modal";
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -16,8 +17,7 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const { address, isConnected } = useAccount();
   const { data: safeStatus, isLoading: checkingSafe, refetch } = useSafeWalletStatus();
   const deploySafe = useDeploySafe();
-  const depositUSDC = useDepositUSDC();
-  const [depositAmount, setDepositAmount] = useState("");
+  const [showBridgeDeposit, setShowBridgeDeposit] = useState(false);
 
   if (!isOpen) return null;
 
@@ -36,25 +36,6 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
       console.error("Failed to deploy Safe:", error);
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
       alert(`Failed to deploy Safe wallet: ${errorMessage}`);
-    }
-  };
-
-  const handleDeposit = async () => {
-    if (!safeStatus?.address || !depositAmount) {
-      alert("Please enter deposit amount");
-      return;
-    }
-
-    try {
-      const result = await depositUSDC.mutateAsync({
-        safeAddress: safeStatus.address,
-        amount: depositAmount,
-      });
-      setDepositAmount("");
-      alert(`Deposit successful! Transaction: ${result.hash}`);
-    } catch (error) {
-      console.error("Failed to deposit:", error);
-      alert("Failed to deposit USDC. Please check your balance and try again.");
     }
   };
 
@@ -127,7 +108,7 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
               </div>
             ) : safeStatus?.exists && safeStatus?.isSafe ? (
               <div className="space-y-3">
-                <div className="flex items-center gap-2 text-green-500">
+                <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-5 w-5" />
                   <span className="font-medium">Safe wallet connected</span>
                 </div>
@@ -151,7 +132,7 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
               </div>
             ) : (
               <div className="space-y-3">
-                <div className="flex items-center gap-2 text-amber-500">
+                <div className="flex items-center gap-2">
                   <AlertCircle className="h-5 w-5" />
                   <span className="font-medium">No Safe wallet found</span>
                 </div>
@@ -172,41 +153,31 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
 
             {/* Deposit Section - Only show if Safe exists */}
             {safeStatus?.exists && safeStatus?.isSafe && (
-              <div className="mt-4 pt-4 border-t border-border">
-                <h4 className="font-medium mb-3">Deposit USDC</h4>
-                <div className="flex gap-2">
-                  <input
-                    type="number"
-                    step="0.000001"
-                    min="0"
-                    value={depositAmount}
-                    onChange={(e) => setDepositAmount(e.target.value)}
-                    placeholder="0.00"
-                    className="flex-1 rounded-lg bg-background border border-border px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                  <button
-                    onClick={handleDeposit}
-                    disabled={depositUSDC.isPending || !depositAmount}
-                    className="px-4 py-2 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                  >
-                    {depositUSDC.isPending ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Depositing...
-                      </>
-                    ) : (
-                      <>
-                        <DollarSign className="h-4 w-4" />
-                        Deposit
-                      </>
-                    )}
-                  </button>
-                </div>
+              <div className="mt-4 pt-4 border-t border-border space-y-3">
+                <h4 className="font-medium mb-3">Deposit Funds</h4>
+                
+                <button
+                  onClick={() => setShowBridgeDeposit(true)}
+                  className="w-full px-4 py-3 rounded-lg border border-border hover:bg-muted transition-all flex items-center justify-center gap-2"
+                >
+                  <ArrowRightLeft className="h-4 w-4" />
+                  Deposit via Bridge
+                </button>
+                <p className="text-xs text-muted-foreground text-center">
+                  Deposit from Ethereum, Base, Arbitrum, Solana, and more
+                </p>
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* Bridge Deposit Modal */}
+      <DepositModal
+        isOpen={showBridgeDeposit}
+        onClose={() => setShowBridgeDeposit(false)}
+        targetAddress={safeStatus?.address}
+      />
     </div>
   );
 }

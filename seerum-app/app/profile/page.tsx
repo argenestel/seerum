@@ -166,16 +166,15 @@ export default function ProfilePage() {
     <div className="min-h-screen bg-background">
       <div className="container mx-auto p-6 max-w-7xl">
         {/* Header */}
-        <div className="mb-6">
+        <div className="mb-8">
           <Link
             href="/"
-            className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-4"
+            className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to Home
+            Back
           </Link>
-          <h1 className="text-4xl font-bold mb-2">Profile</h1>
-          <p className="text-muted-foreground">Your Polymarket trading statistics and activity</p>
+          <h1 className="text-3xl font-semibold">Profile</h1>
         </div>
 
         {(loadingProfile || isLoadingVaultInfo) ? (
@@ -200,124 +199,77 @@ export default function ProfilePage() {
         ) : (
           <>
             {/* Profile Header */}
-            <div className="backdrop-blur-xl bg-white/5 dark:bg-black/5 border border-border rounded-2xl p-6 mb-6">
-              <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
+            <div className="rounded-lg border border-border bg-card p-6 mb-6">
+              <div className="flex items-center gap-4">
                 {profile?.profileImage ? (
                   <img
                     src={profile.profileImage}
                     alt={profile.userName || "Profile"}
-                    className="w-24 h-24 rounded-full border-2 border-border"
+                    className="w-16 h-16 rounded-full border border-border"
                   />
                 ) : (
-                  <div className="w-24 h-24 rounded-full bg-muted border-2 border-border flex items-center justify-center">
-                    <Wallet className="h-12 w-12 text-muted-foreground" />
+                  <div className="w-16 h-16 rounded-full bg-muted border border-border flex items-center justify-center">
+                    <Wallet className="h-8 w-8 text-muted-foreground" />
                   </div>
                 )}
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h2 className="text-2xl font-semibold">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h2 className="text-xl font-semibold truncate">
                       {profile?.userName || formatAddress(address || "")}
                     </h2>
                     {profile?.verifiedBadge && (
-                      <CheckCircle2 className="h-5 w-5 text-primary" />
-                    )}
-                    {profile?.xUsername && (
-                      <span className="text-sm text-muted-foreground">@{profile.xUsername}</span>
+                      <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
                     )}
                   </div>
-                  <div className="flex flex-wrap gap-4 text-sm text-muted-foreground mb-4">
-                    {safeInfo?.safeAddress ? (
-                      <>
-                        <div>
-                          <span className="text-xs text-muted-foreground">Vault Safe:</span>{" "}
-                          <span className="font-mono">{formatAddress(safeInfo.safeAddress)}</span>
-                        </div>
-                        <div>
-                          <span className="text-xs text-muted-foreground">Connected:</span>{" "}
-                          <span className="font-mono">{formatAddress(address || "")}</span>
-                        </div>
-                      </>
-                    ) : (
-                    <span className="font-mono">{formatAddress(address || "")}</span>
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    {safeInfo?.safeAddress && (
+                      <span className="font-mono text-xs">{formatAddress(safeInfo.safeAddress)}</span>
                     )}
                     {profile?.rank && (
-                      <span>Rank: #{profile.rank}</span>
+                      <span>Rank #{profile.rank}</span>
                     )}
                   </div>
-                  <div className="flex gap-4">
-                    <a
-                      href={`https://polymarket.com/profile/${profile?.proxyWallet || safeInfo?.safeAddress || statsAddress || address}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
-                    >
-                      View on Polymarket
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                    <a
-                      href={`https://polygonscan.com/address/${safeInfo?.safeAddress || statsAddress || address}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
-                    >
-                      View on PolygonScan
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <a
+                    href={`https://polymarket.com/profile/${profile?.proxyWallet || safeInfo?.safeAddress || statsAddress || address}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 rounded-lg border border-border hover:bg-muted transition-colors"
+                    title="View on Polymarket"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
                 </div>
               </div>
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <div className="backdrop-blur-xl bg-white/5 dark:bg-black/5 border border-border rounded-xl p-6">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-muted-foreground">Total Volume</span>
-                  <DollarSign className="h-4 w-4 text-muted-foreground" />
-                </div>
-                <p className="text-2xl font-bold">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+              <div className="rounded-lg border border-border bg-card p-4">
+                <p className="text-xs text-muted-foreground mb-1">Volume</p>
+                <p className="text-lg font-semibold">
                   {formatCurrency(profile?.vol || 0)}
                 </p>
               </div>
 
-              <div className="backdrop-blur-xl bg-white/5 dark:bg-black/5 border border-border rounded-xl p-6">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-muted-foreground">Total P&L</span>
-                  {profile && (profile.pnl || 0) >= 0 ? (
-                    <TrendingUp className="h-4 w-4 text-green-500" />
-                  ) : (
-                    <TrendingDown className="h-4 w-4 text-red-500" />
-                  )}
-                </div>
-                <p
-                  className={`text-2xl font-bold ${
-                    profile && (profile.pnl || 0) >= 0 ? "text-green-500" : "text-red-500"
-                  }`}
-                >
+              <div className="rounded-lg border border-border bg-card p-4">
+                <p className="text-xs text-muted-foreground mb-1">P&L</p>
+                <p className="text-lg font-semibold">
                   {formatCurrency(profile?.pnl || 0)}
                 </p>
               </div>
 
-              <div className="backdrop-blur-xl bg-white/5 dark:bg-black/5 border border-border rounded-xl p-6">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-muted-foreground">ROI</span>
-                  <BarChart3 className="h-4 w-4 text-muted-foreground" />
-                </div>
-                <p
-                  className={`text-2xl font-bold ${
-                    profile && (profile.roi || 0) >= 0 ? "text-green-500" : "text-red-500"
-                  }`}
-                >
-                  {profile?.roi ? `${profile.roi.toFixed(2)}%` : "0%"}
+              <div className="rounded-lg border border-border bg-card p-4">
+                <p className="text-xs text-muted-foreground mb-1">ROI</p>
+                <p className="text-lg font-semibold">
+                  {profile?.roi ? `${profile.roi.toFixed(1)}%` : "0%"}
                 </p>
               </div>
 
-              <div className="backdrop-blur-xl bg-white/5 dark:bg-black/5 border border-border rounded-xl p-6">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-muted-foreground">Total Trades</span>
-                  <Activity className="h-4 w-4 text-muted-foreground" />
-                </div>
-                <p className="text-2xl font-bold">{activity.length}</p>
+              <div className="rounded-lg border border-border bg-card p-4">
+                <p className="text-xs text-muted-foreground mb-1">Trades</p>
+                <p className="text-lg font-semibold">{activity.length}</p>
               </div>
             </div>
 
@@ -331,11 +283,11 @@ export default function ProfilePage() {
 
             {/* Charts */}
             {pnlChartData.length > 0 || volumeChartData.length > 0 ? (
-              <div className="space-y-6 mb-6">
+              <div className="space-y-4 mb-6">
                 {/* P&L Chart from API */}
                 {pnlChartData.length > 0 && (
-                  <div className="backdrop-blur-xl bg-white/5 dark:bg-black/5 border border-border rounded-xl p-6">
-                    <h3 className="text-xl font-semibold mb-4">P&L Over Time</h3>
+                  <div className="rounded-lg border border-border bg-card p-4">
+                    <h3 className="text-sm font-medium mb-4">P&L Over Time</h3>
                     <ResponsiveContainer width="100%" height={300}>
                       <AreaChart data={pnlChartData}>
                         <defs>
@@ -369,8 +321,8 @@ export default function ProfilePage() {
 
                 {/* Volume Chart */}
                 {volumeChartData.length > 0 && (
-                  <div className="backdrop-blur-xl bg-white/5 dark:bg-black/5 border border-border rounded-xl p-6">
-                    <h3 className="text-xl font-semibold mb-4">Trading Volume</h3>
+                  <div className="rounded-lg border border-border bg-card p-4">
+                    <h3 className="text-sm font-medium mb-4">Trading Volume</h3>
                     <ResponsiveContainer width="100%" height={300}>
                       <BarChart data={volumeChartData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} />
@@ -391,19 +343,18 @@ export default function ProfilePage() {
                 )}
               </div>
             ) : (
-              <div className="backdrop-blur-xl bg-white/5 dark:bg-black/5 border border-border rounded-xl p-12 text-center mb-6">
-                <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-xl font-semibold mb-2">No Trading Activity</h3>
-                <p className="text-muted-foreground">
-                  Start trading on Polymarket to see your statistics and charts here
+              <div className="rounded-lg border border-border bg-card p-8 text-center mb-6">
+                <BarChart3 className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground">
+                  No trading activity yet
                 </p>
               </div>
             )}
 
             {/* Current Positions */}
             {positions.length > 0 && (
-              <div className="backdrop-blur-xl bg-white/5 dark:bg-black/5 border border-border rounded-xl p-6 mb-6">
-                <h3 className="text-xl font-semibold mb-4">Current Positions</h3>
+              <div className="rounded-lg border border-border bg-card p-4 mb-6">
+                <h3 className="text-sm font-medium mb-4">Current Positions</h3>
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
@@ -429,7 +380,7 @@ export default function ProfilePage() {
                       {positions.slice(0, 10).map((position, idx) => (
                         <tr
                           key={idx}
-                          className="border-b border-border hover:bg-white/5 dark:hover:bg-black/5"
+                          className="border-b border-border hover:bg-muted/50"
                         >
                           <td className="py-3 px-4 text-sm">
                             <a
@@ -451,14 +402,7 @@ export default function ProfilePage() {
                               ? `$${parseFloat(position.currentPrice).toFixed(2)}`
                               : "N/A"}
                           </td>
-                          <td
-                            className={`py-3 px-4 text-sm font-medium ${
-                              position.unrealizedPnl &&
-                              parseFloat(position.unrealizedPnl) >= 0
-                                ? "text-green-500"
-                                : "text-red-500"
-                            }`}
-                          >
+                          <td className="py-3 px-4 text-sm font-medium">
                             {position.unrealizedPnl
                               ? formatCurrency(position.unrealizedPnl)
                               : "N/A"}
@@ -473,8 +417,8 @@ export default function ProfilePage() {
 
             {/* Closed Positions */}
             {closedPositions.length > 0 && (
-              <div className="backdrop-blur-xl bg-white/5 dark:bg-black/5 border border-border rounded-xl p-6 mb-6">
-                <h3 className="text-xl font-semibold mb-4">Closed Positions</h3>
+              <div className="rounded-lg border border-border bg-card p-4 mb-6">
+                <h3 className="text-sm font-medium mb-4">Closed Positions</h3>
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
@@ -497,7 +441,7 @@ export default function ProfilePage() {
                       {closedPositions.slice(0, 10).map((position, idx) => (
                         <tr
                           key={idx}
-                          className="border-b border-border hover:bg-white/5 dark:hover:bg-black/5"
+                          className="border-b border-border hover:bg-muted/50"
                         >
                           <td className="py-3 px-4 text-sm">
                             <a
@@ -514,13 +458,7 @@ export default function ProfilePage() {
                           <td className="py-3 px-4 text-sm">
                             {parseFloat(position.size || "0").toFixed(4)}
                           </td>
-                          <td
-                            className={`py-3 px-4 text-sm font-medium ${
-                              position.realizedPnl && parseFloat(position.realizedPnl) >= 0
-                                ? "text-green-500"
-                                : "text-red-500"
-                            }`}
-                          >
+                          <td className="py-3 px-4 text-sm font-medium">
                             {position.realizedPnl
                               ? formatCurrency(position.realizedPnl)
                               : "N/A"}
@@ -535,8 +473,8 @@ export default function ProfilePage() {
 
             {/* Recent Activity */}
             {activity.length > 0 && (
-              <div className="backdrop-blur-xl bg-white/5 dark:bg-black/5 border border-border rounded-xl p-6">
-                <h3 className="text-xl font-semibold mb-4">Recent Activity</h3>
+              <div className="rounded-lg border border-border bg-card p-4">
+                <h3 className="text-sm font-medium mb-4">Recent Activity</h3>
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
@@ -562,7 +500,7 @@ export default function ProfilePage() {
                       {activity.slice(0, 10).map((trade) => (
                         <tr
                           key={trade.id || trade.taker_order_id}
-                          className="border-b border-border hover:bg-white/5 dark:hover:bg-black/5"
+                          className="border-b border-border hover:bg-muted/50"
                         >
                           <td className="py-3 px-4 text-sm">
                             {(() => {
@@ -585,13 +523,7 @@ export default function ProfilePage() {
                             })()}
                           </td>
                           <td className="py-3 px-4">
-                            <span
-                              className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                                trade.side === "BUY"
-                                  ? "bg-green-500/20 text-green-500"
-                                  : "bg-red-500/20 text-red-500"
-                              }`}
-                            >
+                            <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium border border-border">
                               {trade.side}
                             </span>
                           </td>
