@@ -219,19 +219,53 @@ export class EventProcessor extends EventEmitter {
         return false;
       }
 
-      // Calculate order value (price * size)
-      const originalOrderValue = originalPrice * originalSize;
-      
-      // Scale by percentage
-      const scaledOrderValue = (originalOrderValue * percentage) / 100;
+      // For SELL orders, we need to use the subscriber's actual position size
+      // For BUY orders, we calculate based on dollar amount
+      let finalOrderValue: number;
+      let usePositionSize = false;
+      let positionSizeToSell = 0;
+
+      if (side === Side.SELL) {
+        // For SELL orders, get the subscriber's actual position size
+        console.log(`   🔍 SELL order detected - fetching subscriber position size...`);
+        const subscriberPositionSize = await this.getSubscriberPositionSize(safeAddress, tokenId);
+        
+        if (subscriberPositionSize > 0) {
+          // Scale position size by percentage
+          positionSizeToSell = (subscriberPositionSize * percentage) / 100;
+          
+          // Calculate order value from position size and current price
+          // Use the trade price as an estimate, but the market order will use current market price
+          finalOrderValue = positionSizeToSell * originalPrice;
+          usePositionSize = true;
+          
+          console.log(`   Subscriber position size: ${subscriberPositionSize} shares`);
+          console.log(`   Scaled position size (${percentage}%): ${positionSizeToSell} shares`);
+          console.log(`   Estimated order value: $${finalOrderValue.toFixed(2)}`);
+        } else {
+          // No position found - fall back to dollar amount calculation
+          console.log(`   ⚠️  No position found for token ${tokenId}, using dollar amount calculation`);
+          const originalOrderValue = originalPrice * originalSize;
+          const scaledOrderValue = (originalOrderValue * percentage) / 100;
+          finalOrderValue = scaledOrderValue;
+        }
+      } else {
+        // For BUY orders, calculate based on dollar amount
+        const originalOrderValue = originalPrice * originalSize;
+        const scaledOrderValue = (originalOrderValue * percentage) / 100;
+        finalOrderValue = scaledOrderValue;
+      }
       
       // Minimum order value is $1
       const MIN_ORDER_VALUE = 1.0;
-      let desiredOrderValue = Math.max(scaledOrderValue, MIN_ORDER_VALUE);
+      finalOrderValue = Math.max(finalOrderValue, MIN_ORDER_VALUE);
       
-      console.log(`   Original order value: $${originalOrderValue.toFixed(2)}`);
-      console.log(`   Scaled order value (${percentage}%): $${scaledOrderValue.toFixed(2)}`);
-      console.log(`   Desired order value (min $${MIN_ORDER_VALUE}): $${desiredOrderValue.toFixed(2)}`);
+      console.log(`   Original trade size: ${originalSize}`);
+      console.log(`   Original trade price: $${originalPrice}`);
+      if (side === Side.SELL && usePositionSize) {
+        console.log(`   Final position size to sell: ${positionSizeToSell} shares`);
+      }
+      console.log(`   Final order value: $${finalOrderValue.toFixed(2)}`);
 
       // Check available balance and scale order accordingly
       let availableBalance = 0;
@@ -274,22 +308,29 @@ export class EventProcessor extends EventEmitter {
         console.log(`   💡 This might be normal for proxy wallets. Proceeding with desired order value.`);
       }
 
-      // Scale order value to match available balance if insufficient
-      let finalOrderValue = desiredOrderValue;
-      if (availableBalance > 0 && availableBalance < desiredOrderValue) {
-        // Scale down to available balance, but ensure minimum $1
-        finalOrderValue = Math.max(availableBalance, MIN_ORDER_VALUE);
-        console.log(`   ⚠️  Insufficient balance! Scaling order down:`);
-        console.log(`      Desired: $${desiredOrderValue.toFixed(2)}`);
-        console.log(`      Available: $${availableBalance.toFixed(2)}`);
-        console.log(`      Final (scaled): $${finalOrderValue.toFixed(2)}`);
-        
-        if (finalOrderValue < MIN_ORDER_VALUE) {
-          console.error(`   ❌ Available balance ($${availableBalance.toFixed(2)}) is below minimum order value ($${MIN_ORDER_VALUE})`);
+      // Scale order value to match available balance if insufficient (only for BUY orders)
+      if (side === Side.BUY) {
+        if (availableBalance > 0 && availableBalance < finalOrderValue) {
+          // Scale down to available balance, but ensure minimum $1
+          finalOrderValue = Math.max(availableBalance, MIN_ORDER_VALUE);
+          console.log(`   ⚠️  Insufficient balance! Scaling order down:`);
+          console.log(`      Desired: $${finalOrderValue.toFixed(2)}`);
+          console.log(`      Available: $${availableBalance.toFixed(2)}`);
+          console.log(`      Final (scaled): $${finalOrderValue.toFixed(2)}`);
+          
+          if (finalOrderValue < MIN_ORDER_VALUE) {
+            console.error(`   ❌ Available balance ($${availableBalance.toFixed(2)}) is below minimum order value ($${MIN_ORDER_VALUE})`);
+            return false;
+          }
+        } else if (availableBalance === 0) {
+          console.log(`   ⚠️  No balance detected. Proceeding with order (may fail if insufficient)`);
+        }
+      } else {
+        // For SELL orders, check if we have enough position size
+        if (usePositionSize && positionSizeToSell <= 0) {
+          console.error(`   ❌ No position to sell for token ${tokenId}`);
           return false;
         }
-      } else if (availableBalance === 0) {
-        console.log(`   ⚠️  No balance detected. Proceeding with order (may fail if insufficient)`);
       }
 
       // Check USDC allowance for CTF before creating order
@@ -391,15 +432,31 @@ export class EventProcessor extends EventEmitter {
         console.log(`   Balance check skipped (non-critical)`);
       }
 
-      // Create market order (amount is in USD, not size) - exactly like test-vault-trading.ts
-      console.log(`   Creating market order:`);
-      console.log(`   - Token ID: ${tokenId}`);
-      console.log(`   - Amount: $${finalOrderValue.toFixed(2)}`);
+      // Create market order
+      // For SELL orders with position size, calculate dollar amount from position size
+      // For BUY orders, use the calculated dollar amount directly
+      if (side === Side.SELL && usePositionSize && positionSizeToSell > 0) {
+        // Recalculate finalOrderValue based on position size and trade price
+        // This ensures we sell approximately the right quantity
+        finalOrderValue = positionSizeToSell * originalPrice;
+        finalOrderValue = Math.max(finalOrderValue, MIN_ORDER_VALUE);
+        
+        console.log(`   Creating SELL market order based on position size:`);
+        console.log(`   - Token ID: ${tokenId}`);
+        console.log(`   - Position size to sell: ${positionSizeToSell} shares`);
+        console.log(`   - Trade price: $${originalPrice}`);
+        console.log(`   - Calculated order value: $${finalOrderValue.toFixed(2)}`);
+      } else {
+        console.log(`   Creating market order:`);
+        console.log(`   - Token ID: ${tokenId}`);
+        console.log(`   - Amount: $${finalOrderValue.toFixed(2)}`);
+      }
+      
       console.log(`   - Side: ${side === Side.BUY ? 'BUY' : 'SELL'}`);
       
       const order = await (client as any).createMarketOrder({
         tokenID: tokenId,
-        amount: finalOrderValue, // Amount in USD (scaled to available balance)
+        amount: finalOrderValue, // Amount in USD
         side: side,
       });
 
@@ -531,6 +588,96 @@ export class EventProcessor extends EventEmitter {
     } catch (error: any) {
       console.error(`❌ Exception fetching vault: ${error.message}`);
       return null;
+    }
+  }
+
+  /**
+   * Get subscriber's position size for a specific token
+   * Fetches from Polymarket positions API
+   */
+  private async getSubscriberPositionSize(
+    safeAddress: string,
+    tokenId: string
+  ): Promise<number> {
+    try {
+      const DATA_API_BASE = "https://data-api.polymarket.com";
+      console.log(`   🔍 Fetching positions for Safe address: ${safeAddress}`);
+      console.log(`   🔍 Looking for token ID: ${tokenId}`);
+      
+      const response = await axios.get(`${DATA_API_BASE}/positions`, {
+        params: {
+          user: safeAddress,
+          limit: 100,
+          offset: 0,
+          sortBy: "CURRENT",
+          sortDirection: "DESC",
+          sizeThreshold: 0.01, // Very low threshold to catch all positions
+        },
+        headers: {
+          "Accept": "application/json",
+        },
+      });
+
+      const positions = response.data.positions || response.data || [];
+      console.log(`   📊 Found ${positions.length} total positions`);
+      
+      // Log all position token IDs for debugging
+      if (positions.length > 0) {
+        console.log(`   📋 Position token IDs:`, positions.map((pos: any) => {
+          const posTokenId = pos.token_id || pos.asset_id || pos.tokenId || pos.tokenID || pos.assetId || "unknown";
+          const posSize = pos.size || pos.quantity || pos.tokens || pos.tokenSize || pos.currentSize || "0";
+          return `${posTokenId}: ${posSize}`;
+        }).join(", "));
+      }
+      
+      // Find position matching the token ID
+      const matchingPosition = positions.find((pos: any) => {
+        // Position might have token_id, asset_id, tokenId, tokenID, or assetId field
+        const posTokenId = pos.token_id || pos.asset_id || pos.tokenId || pos.tokenID || pos.assetId;
+        if (!posTokenId) return false;
+        
+        // Compare token IDs (handle both string and number formats)
+        const posTokenIdStr = String(posTokenId).toLowerCase();
+        const searchTokenIdStr = String(tokenId).toLowerCase();
+        return posTokenIdStr === searchTokenIdStr;
+      });
+
+      if (matchingPosition) {
+        // Position size might be in different fields: size, quantity, tokens, tokenSize, currentSize, etc.
+        const positionSize = parseFloat(
+          matchingPosition.size || 
+          matchingPosition.quantity || 
+          matchingPosition.tokens || 
+          matchingPosition.tokenSize ||
+          matchingPosition.currentSize ||
+          matchingPosition.positionSize ||
+          matchingPosition.amount ||
+          "0"
+        );
+        
+        console.log(`   ✅ Found position for token ${tokenId}: ${positionSize} shares`);
+        console.log(`   📊 Position details:`, JSON.stringify(matchingPosition, null, 2).substring(0, 300));
+        
+        if (positionSize <= 0) {
+          console.log(`   ⚠️  Position size is 0 or invalid: ${positionSize}`);
+          return 0;
+        }
+        
+        return positionSize;
+      }
+
+      console.log(`   ⚠️  No position found for token ${tokenId}`);
+      console.log(`   💡 This might mean:`);
+      console.log(`      - Subscriber doesn't own this token`);
+      console.log(`      - Position was already closed`);
+      console.log(`      - Token ID format mismatch`);
+      return 0;
+    } catch (error: any) {
+      console.log(`   ⚠️  Could not fetch position size: ${error?.response?.data?.error || error.message}`);
+      if (error?.response?.data) {
+        console.log(`   Error details:`, JSON.stringify(error.response.data, null, 2).substring(0, 200));
+      }
+      return 0;
     }
   }
 
