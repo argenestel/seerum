@@ -1,10 +1,20 @@
-FROM node:20-alpine
+FROM ubuntu:22.04
 
-# Install pnpm and yarn (yarn needed for Makefile)
-RUN apk update && apk add -y nodejs
-RUN npm install --global yarn
+# Avoid prompts from apt
+ENV DEBIAN_FRONTEND=noninteractive
 
-RUN curl -fsSL https://get.pnpm.io/install.sh | sh -
+# Install Node.js (using NodeSource repository for latest LTS)
+RUN apt-get update && apt-get install -y \
+    curl \
+    ca-certificates \
+    gnupg \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install pnpm and yarn
+RUN npm install --global yarn pnpm
 
 WORKDIR /app
 
