@@ -1,6 +1,6 @@
 "use client";
 
-import { X, Wallet, ExternalLink, CheckCircle2, AlertCircle, User, ArrowRightLeft } from "lucide-react";
+import { X, Wallet, ExternalLink, CheckCircle2, AlertCircle, User, DollarSign } from "lucide-react";
 import { useSafeWalletStatus, useDeploySafe } from "@/lib/hooks/useSafeWallet";
 import { useAccount } from "wagmi";
 import { formatAddress } from "@/lib/utils";
@@ -160,12 +160,9 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                   onClick={() => setShowBridgeDeposit(true)}
                   className="w-full px-4 py-3 rounded-lg border border-border hover:bg-muted transition-all flex items-center justify-center gap-2"
                 >
-                  <ArrowRightLeft className="h-4 w-4" />
-                  Deposit via Bridge
+                  <DollarSign className="h-4 w-4" />
+                  Deposit Funds
                 </button>
-                <p className="text-xs text-muted-foreground text-center">
-                  Deposit from Ethereum, Base, Arbitrum, Solana, and more
-                </p>
               </div>
             )}
           </div>

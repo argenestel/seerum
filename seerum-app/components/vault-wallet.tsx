@@ -280,11 +280,11 @@ export function VaultWallet() {
                   onClick={() => setShowBridgeDeposit(true)}
                   className="w-full px-4 py-3 rounded-lg border border-border hover:bg-muted transition-all flex items-center justify-center gap-2"
                 >
-                  <ArrowRightLeft className="h-4 w-4" />
-                  Deposit via Bridge
+                  <DollarSign className="h-4 w-4" />
+                  Deposit Funds
                 </button>
                 <p className="text-xs text-muted-foreground text-center">
-                  Deposit from Ethereum, Base, Arbitrum, Solana, and more
+                  Deposit USDC.e on Polygon network
                 </p>
               </div>
 
