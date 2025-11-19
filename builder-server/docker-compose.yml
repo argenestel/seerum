@@ -6,16 +6,16 @@ services:
     container_name: builder-signing-server
     restart: unless-stopped
     ports:
-      - "${PORT:-8080}:8080"
+      - "${PORT:-3001}:3001"
     environment:
-      - PORT=${PORT:-8080}
+      - PORT=${PORT:-3001}
       - POLY_BUILDER_API_KEY=${POLY_BUILDER_API_KEY}
       - POLY_BUILDER_SECRET=${POLY_BUILDER_SECRET}
       - POLY_BUILDER_PASSPHRASE=${POLY_BUILDER_PASSPHRASE}
       - AUTHORIZATION_TOKEN=${AUTHORIZATION_TOKEN:-}
       - NODE_ENV=production
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/"]
       interval: 30s
       timeout: 10s
       retries: 3

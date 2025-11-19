@@ -21,7 +21,7 @@ COPY src ./src
 RUN pnpm run build
 
 # Expose port
-EXPOSE 8080
+EXPOSE 3001
 
 # Start the application
 CMD ["node", "dist/server.js"]
