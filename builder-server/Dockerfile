@@ -1,7 +1,7 @@
 FROM node:20-alpine
 
 # Install pnpm and yarn (yarn needed for Makefile)
-RUN apk update &&         apk add -y nodejs npm
+RUN apk update && apk add -y nodejs
 RUN npm install --global yarn
 
 RUN curl -fsSL https://get.pnpm.io/install.sh | sh -
