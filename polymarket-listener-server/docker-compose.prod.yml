@@ -1,0 +1,21 @@
+version: '3.8'
+
+# Production docker-compose override
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  polymarket-listener:
+    # Override for production-specific settings
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    # Uncomment to use a specific image tag instead of building
+    # image: polymarket-listener-server:latest
+    # build: null
+

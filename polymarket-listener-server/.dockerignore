@@ -1,0 +1,51 @@
+# Dependencies
+node_modules
+npm-debug.log
+bun.lockb
+
+# Build output
+dist
+*.tsbuildinfo
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs
+*.log
+
+# Testing
+coverage
+.nyc_output
+
+# Documentation
+*.md
+!README.md
+
+# Scripts (not needed in production)
+scripts
+
+# Migrations (if not needed at runtime)
+migrations
+
+# Docker files themselves
+docker-compose*.yml
+Dockerfile*
+
