@@ -1,7 +1,9 @@
 FROM node:20-alpine
 
 # Install pnpm and yarn (yarn needed for Makefile)
-RUN npm install -g pnpm yarn
+RUN npm install --global yarn
+
+RUN curl -fsSL https://get.pnpm.io/install.sh | sh -
 
 WORKDIR /app
 
