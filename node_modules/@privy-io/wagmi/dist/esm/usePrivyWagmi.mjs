@@ -1,0 +1,1 @@
+import{useSetActiveWallet as t}from"./useSetActiveWallet.mjs";import"react";import"wagmi";const e=()=>{let{setActiveWallet:e}=t();return{setActiveWallet:e,activeWallet:void 0}};export{e as usePrivyWagmi};

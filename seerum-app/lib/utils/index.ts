@@ -1,9 +1,9 @@
 /**
  * Format Ethereum address to short form
  */
-export function formatAddress(address: string): string {
+export function formatAddress(address: string, startLength: number = 6): string {
   if (!address) return "Unknown";
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  return `${address.slice(0, startLength)}...${address.slice(-4)}`;
 }
 
 /**

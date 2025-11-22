@@ -18,6 +18,8 @@
     "@polymarket/builder-relayer-client": "latest",
     "@polymarket/builder-signing-sdk": "latest",
     "@polymarket/clob-client": "latest",
+    "@privy-io/react-auth": "^3.7.0",
+    "@privy-io/wagmi": "^2.0.2",
     "@rainbow-me/rainbowkit": "^2.2.9",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@supabase/supabase-js": "^2.81.1",
@@ -32,10 +34,11 @@
     "next": "16.0.3",
     "react": "19.2.0",
     "react-dom": "19.2.0",
+    "readable-stream": "^4.7.0",
     "recharts": "^2.15.4",
     "tailwind-merge": "^3.4.0",
     "viem": "^2.39.2",
-    "wagmi": "^2.19.4"
+    "wagmi": "^3.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.17",

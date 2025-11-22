@@ -1,6 +1,6 @@
 "use client";
 
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { PrivyConnectButton } from "@/components/privy-connect-button";
 import { Moon, Sun, Copy, Zap, Target, ArrowRight } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useTheme } from "./theme-provider";
@@ -103,34 +103,14 @@ export default function Home() {
                   <User className="h-5 w-5" />
                 </Link>
               )}
-              <div className="[&_button]:text-xs sm:[&_button]:text-sm">
-                <ConnectButton />
-              </div>
+              <PrivyConnectButton />
             </div>
           </div>
         </div>
       </header>
 
       <main className="container mx-auto p-6">
-        {/* Copy Trade on Prediction Markets Banner */}
-        <div className="mb-8 backdrop-blur-xl bg-white/10 dark:bg-black/10 border border-border rounded-2xl p-6 md:p-8">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="rounded-full bg-muted backdrop-blur-md p-4 border border-border">
-                <Target className="h-6 w-6" />
-              </div>
-              <div>
-                <h3 className="text-xl font-semibold mb-1">
-                  Copy Trade on Prediction Markets
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  Follow expert traders and automatically replicate their positions on prediction markets
-                </p>
-              </div>
-            </div>
-    
-          </div>
-        </div>
+
 
         <div className="mb-8">
           <h2 className="text-3xl font-semibold mb-2">
